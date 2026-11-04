@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block head %}{% for h in cfg.hospitals %}{% set t = tests.get(h.login_env) %}{% if t and t.ok is none %}<meta http-equiv="refresh" content="20">{% endif %}{% endfor %}{% endblock %}
+{% block body %}
+<h1>Hospitals</h1>
+<p class="muted">Use the email and password you already have on each hospital's careers site. Passwords are encrypted on your server and never shown again. Leave the password empty to keep the saved one.</p>
+
+{% for h in cfg.hospitals | sort(attribute='enabled', reverse=true) %}
+  {% set le = h.login_env %}
+  {% set saved = logins.get(le, {}) %}
+  {% set t = tests.get(le) %}
+  {% set has = saved.has_password or env_logins.get(le) %}
+  <details class="card" {{ 'open' if h.enabled and not (t and t.ok) }}>
+    <summary>
+      <span style="display:inline-flex;flex-direction:column;gap:4px;vertical-align:middle;max-width:85%">
+        <span>{{ h.name }}</span>
+        <span>
+          {% if not h.enabled %}<span class="pill">off</span>
+          {% elif t and t.ok %}<span class="pill submitted_confirmed">✓ login works</span>
+          {% elif t and t.ok is false %}<span class="pill failed">login failed</span>
+          {% elif t %}<span class="pill approved">testing…</span>
+          {% elif has %}<span class="pill approved">saved, not tested</span>
+          {% else %}<span class="pill needs_info">add login</span>{% endif %}
+        </span>
+      </span>
+    </summary>
+    <div style="margin-top:10px">
+      {% if not h.enabled %}
+        <p class="muted">Not being watched. {% if 'PASTE' in h.careers_url %}Its careers address still needs adding.{% else %}Turn it on in config.yaml on the server.{% endif %}</p>
+      {% elif h.platform != 'successfactors' %}
+        <p class="muted">This site isn't automated yet, so you'll get an email with the link instead.</p>
+      {% else %}
+      <p class="small"><a href="{{ h.careers_url }}" target="_blank" rel="noopener">Open careers site ↗</a></p>
+      <form method="post" action="/login/{{ le }}">
+        <label for="e_{{ le }}">Email</label>
+        <input id="e_{{ le }}" type="email" name="email" value="{{ saved.email or '' }}" autocomplete="off" autocapitalize="off">
+        <label for="pw_{{ le }}">Password {% if has %}<span class="muted">(saved ✓)</span>{% endif %}</label>
+        <input id="pw_{{ le }}" type="password" name="password" placeholder="{{ '••••••••' if has else '' }}" autocomplete="new-password">
+        <div class="row" style="margin-top:14px">
+          <button style="flex:1">Save</button>
+          <button class="btn-ghost" style="flex:1" formaction="/login/{{ le }}/test">Test login</button>
+        </div>
+        {% if t and t.note %}<p class="muted small" style="margin-bottom:0">{{ t.note }} · {{ t.at }}{% if t.screenshot %} · <a href="/login/{{ le }}/screenshot" target="_blank">see screenshot</a>{% endif %}</p>{% endif %}
+      </form>
+      {% endif %}
+    </div>
+  </details>
+{% endfor %}
+{% endblock %}

@@ -18,7 +18,9 @@ from .settings import ROOT, config, env
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 db.init()
 
-app = FastAPI(title="Hospital Auto-Apply")
+app = FastAPI(title="PulseApply")
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+app.mount("/static", StaticFiles(directory=str(ROOT / "app" / "static")), name="static")
 templates = Jinja2Templates(directory=str(ROOT / "app" / "templates"))
 security = HTTPBasic()
 
@@ -72,7 +74,7 @@ def _write_env(updates: dict):
 
 @app.middleware("http")
 async def require_setup(request: Request, call_next):
-    if not configured() and request.url.path not in ("/setup", "/health"):
+    if not configured() and request.url.path not in ("/setup", "/health") and not request.url.path.startswith("/static/"):
         return RedirectResponse("/setup", 303)
     return await call_next(request)
 
@@ -133,22 +135,65 @@ def start_scheduler():
 
 
 # ---------- pages ----------
-@app.get("/", dependencies=[Depends(auth)])
-def home(request: Request, msg: str = ""):
+def _page(request: Request, tab: str, msg: str):
     cfg = config()
     r = resume.current()
     jobs = db.list_jobs()
     counts = {}
     for j in jobs:
         counts[j["status"]] = counts.get(j["status"], 0) + 1
-    return templates.TemplateResponse(request, "home.html", {
-        "cfg": cfg, "resume": r.name if r else None, "jobs": jobs, "counts": counts,
-        "profile": db.get_kv("profile", {}), "fields": PROFILE_FIELDS,
+    profile = db.get_kv("profile", {})
+    logins = vault.summary()
+    enabled = [h for h in cfg["hospitals"] if h.get("enabled")]
+    steps = [
+        ("Upload your resume", bool(r), "/profile#resume"),
+        ("Fill in your profile", bool(profile.get("work_rights") and profile.get("phone")), "/profile#profile"),
+        ("Add a hospital login", any((logins.get(h.get("login_env")) or {}).get("has_password") for h in enabled), "/logins"),
+        ("Run your first check", db.get_kv("last_check") is not None, "/"),
+    ]
+    version = (ROOT / "VERSION").read_text().strip() if (ROOT / "VERSION").exists() else "dev"
+    return templates.TemplateResponse(request, f"{tab}.html", {
+        "tab": tab, "cfg": cfg, "resume": r.name if r else None, "jobs": jobs, "counts": counts,
+        "profile": profile, "fields": PROFILE_FIELDS, "steps": steps, "setup_done": all(s[1] for s in steps), "version": version,
         "last_check": db.get_kv("last_check", "never"), "msg": msg,
-        "logins": vault.summary(), "label": LABELS,
+        "logins": logins, "label": LABELS, "update": db.get_kv("update_status"),
         "tests": {h.get("login_env"): db.get_kv(f"login_test:{h.get('login_env')}") for h in cfg["hospitals"]},
         "env_logins": {h.get("login_env"): bool(env(f"{h.get('login_env')}_PASSWORD")) for h in cfg["hospitals"]},
     })
+
+
+@app.get("/", dependencies=[Depends(auth)])
+def home(request: Request, msg: str = ""):
+    return _page(request, "home", msg)
+
+
+@app.get("/profile", dependencies=[Depends(auth)])
+def profile_page(request: Request, msg: str = ""):
+    return _page(request, "profile", msg)
+
+
+@app.get("/logins", dependencies=[Depends(auth)])
+def logins_page(request: Request, msg: str = ""):
+    return _page(request, "logins", msg)
+
+
+def _do_update():
+    from . import updater
+    db.set_kv("update_status", {"state": "running", "at": db.now()})
+    try:
+        v = updater.update_from_github()
+        db.set_kv("update_status", {"state": "done", "version": v, "at": db.now()})
+    except Exception as e:  # noqa: BLE001
+        db.set_kv("update_status", {"state": "failed", "error": str(e)[:200], "at": db.now()})
+        return
+    time.sleep(1)
+    os._exit(0)   # systemd restarts the app on the new version within ~10 s
+
+
+@app.post("/update", dependencies=[Depends(auth)])
+def update_app():
+    _background(_do_update)
+    return RedirectResponse("/profile?msg=Updating - this takes 1-3 minutes, then refresh the page#app", 303)
 
 
 @app.post("/resume", dependencies=[Depends(auth)])
@@ -156,8 +201,8 @@ async def upload_resume(file: UploadFile = File(...)):
     try:
         resume.save(file.filename, await file.read())
     except ValueError as e:
-        return RedirectResponse(f"/?msg={e}", 303)
-    return RedirectResponse("/?msg=Resume uploaded", 303)
+        return RedirectResponse(f"/profile?msg={e}#resume", 303)
+    return RedirectResponse("/profile?msg=Resume uploaded#resume", 303)
 
 
 @app.get("/resume/download", dependencies=[Depends(auth)])
@@ -172,7 +217,7 @@ def download_resume():
 async def save_profile(request: Request):
     form = await request.form()
     db.set_kv("profile", {k: str(form.get(k, "")).strip() for k, _ in PROFILE_FIELDS})
-    return RedirectResponse("/?msg=Profile saved", 303)
+    return RedirectResponse("/profile?msg=Profile saved#profile", 303)
 
 
 @app.post("/check", dependencies=[Depends(auth)])
@@ -190,7 +235,8 @@ def job_page(request: Request, job_id: int, msg: str = ""):
     questions = _json.loads(job["questions"] or "[]") if job["status"] == "needs_info" else []
     warnings = _json.loads(job["letter_warnings"] or "[]")
     return templates.TemplateResponse(request, "job.html", {
-        "job": job, "questions": questions, "warnings": warnings, "label": LABELS, "msg": msg,
+        "job": job, "questions": questions, "warnings": warnings, "label": LABELS, "msg": msg, "tab": "job", "can_approve": job["status"] == "ready_for_review" and not job["submit_attempted_at"],
+        "counts": {},
         "has_shot": bool(job["screenshot"] and Path(job["screenshot"]).exists()),
     })
 
@@ -275,7 +321,7 @@ def save_login(login_env: str, email: str = Form(""), password: str = Form("")):
     _hospital(login_env)
     vault.save_login(login_env, email, password or None)
     db.set_kv(f"login_test:{login_env}", None)
-    return RedirectResponse(f"/?msg=Login saved for {login_env.title()} - tap Test login to check it#logins", 303)
+    return RedirectResponse(f"/logins?msg=Login saved for {login_env.title()} - tap Test login to check it", 303)
 
 
 def _run_login_test(login_env: str):
@@ -292,9 +338,9 @@ def test_login(login_env: str, email: str = Form(""), password: str = Form("")):
     if email:  # save whatever was typed before testing
         vault.save_login(login_env, email, password or None)
     if h["platform"] != "successfactors" or "PASTE" in h["careers_url"]:
-        return RedirectResponse("/?msg=Login testing isn't available for this hospital yet#logins", 303)
+        return RedirectResponse("/logins?msg=Login testing isn't available for this hospital yet", 303)
     _background(_run_login_test, login_env)
-    return RedirectResponse("/?msg=Testing login - refresh in about 30 seconds#logins", 303)
+    return RedirectResponse("/logins?msg=Testing login - refresh in about 30 seconds", 303)
 
 
 @app.get("/login/{login_env}/screenshot", dependencies=[Depends(auth)])

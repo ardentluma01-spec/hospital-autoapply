@@ -2,43 +2,140 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hospital Auto-Apply</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A2E36">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PulseApply">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>PulseApply</title>
+<link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<link rel="manifest" href="/static/manifest.webmanifest">
+{% block head %}{% endblock %}
 <style>
-  :root { --ink:#1d2630; --muted:#647282; --line:#e3e8ee; --bg:#f6f8fa; --accent:#0b6e69; --warn:#b4540a; --bad:#b42318; --ok:#16794a; }
-  * { box-sizing: border-box; }
-  body { margin:0; font:15px/1.5 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif; color:var(--ink); background:var(--bg); }
-  header { background:#fff; border-bottom:1px solid var(--line); padding:14px 18px; display:flex; justify-content:space-between; align-items:center; }
-  header a { color:var(--ink); text-decoration:none; font-weight:650; }
-  main { max-width:960px; margin:0 auto; padding:18px; }
-  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:16px; }
-  h2 { font-size:16px; margin:0 0 10px; }
-  .muted { color:var(--muted); font-size:13px; }
-  .msg { background:#e8f4f3; border:1px solid #b8dcd9; border-radius:10px; padding:10px 14px; margin-bottom:16px; }
-  button, .btn { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:9px 14px; font:inherit; font-weight:600; cursor:pointer; text-decoration:none; display:inline-block; }
-  .btn.secondary, button.secondary { background:#fff; color:var(--ink); border:1px solid var(--line); }
-  button.danger { background:#fff; color:var(--bad); border:1px solid #f1c4c0; }
-  input[type=text], textarea { width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font:inherit; }
-  textarea { min-height:280px; }
-  label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
-  table { width:100%; border-collapse:collapse; }
-  td, th { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; font-size:14px; }
-  th { color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.03em; }
-  .pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:12px; font-weight:600; background:#eef1f4; color:var(--muted); white-space:nowrap; }
-  .pill.ready, .pill.ready_for_review { background:#e6f4ee; color:var(--ok); } .pill.submitted, .pill.submitted_confirmed, .pill.applied_by_user { background:var(--ok); color:#fff; }
-  .pill.needs_you, .pill.needs_info, .pill.submission_unknown { background:#fdf0e3; color:#8a3f06; } .pill.failed, .pill.blocked { background:#fde8e6; color:var(--bad); }
-  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:0 16px; }
-  img.shot { width:100%; border:1px solid var(--line); border-radius:8px; }
-  pre { white-space:pre-wrap; background:var(--bg); padding:10px; border-radius:8px; font-size:13px; }
-  a { color:var(--accent); }
+  :root {
+    --paper:#F6F3EC; --card:#FFFFFF; --ink:#0A2E36; --ink2:#0F5257; --muted:#56666B; --line:#E6E0D4;
+    --mint:#16835F; --mint-bg:#E2F5EC; --coral:#C2410C; --coral-bg:#FDEBE3; --dot:#FF7A59;
+    --red:#B42318; --red-bg:#FDE8E6; --gold-bg:#FBF3DC; --gold:#7A5300;
+    --round: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif;
+    --radius: 20px; --shadow: 0 1px 2px rgba(10,46,54,.06), 0 8px 24px rgba(10,46,54,.06);
+  }
+  * { box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; }
+  body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.5 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+         padding-bottom:calc(92px + env(safe-area-inset-bottom)); }
+  a { color:var(--ink2); }
+  h1, h2, h3, .brand, .big { font-family:var(--round); letter-spacing:-.01em; }
+  h1 { font-size:26px; margin:0 0 4px; line-height:1.2; }
+  h2 { font-size:18px; margin:0 0 10px; }
+  .top { position:sticky; top:0; z-index:5; background:rgba(246,243,236,.92); backdrop-filter:saturate(1.4) blur(10px);
+         padding:calc(10px + env(safe-area-inset-top)) 18px 10px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--line); }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:800; font-size:19px; color:var(--ink); text-decoration:none; }
+  .brand img { width:32px; height:32px; border-radius:9px; }
+  .top .spacer { flex:1; }
+  main { max-width:760px; margin:0 auto; padding:18px 16px; }
+  .card { background:var(--card); border-radius:var(--radius); padding:18px; margin-bottom:14px; box-shadow:var(--shadow); }
+  .hero { background:linear-gradient(135deg, #0F5257, #0A2E36); color:#fff; border-radius:24px; padding:20px; margin-bottom:14px; position:relative; overflow:hidden; }
+  .hero::after { content:""; position:absolute; right:-30px; top:-30px; width:140px; height:140px; border-radius:50%; background:rgba(158,240,211,.12); }
+  .hero .muted { color:#BFE3DA; }
+  .muted { color:var(--muted); font-size:14px; }
+  .small { font-size:13px; }
+  .msg { background:var(--mint-bg); color:#0B5B41; border-radius:14px; padding:12px 14px; margin-bottom:14px; font-weight:600; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .between { justify-content:space-between; }
+  .stack > * + * { margin-top:10px; }
+  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:16px; }
+  .stat { background:rgba(255,255,255,.1); border-radius:14px; padding:10px; text-align:center; }
+  .stat b { display:block; font-family:var(--round); font-size:24px; line-height:1.1; }
+  .stat span { font-size:12px; color:#CFEDE5; }
+  button, .btn { appearance:none; border:0; border-radius:14px; padding:13px 18px; font:inherit; font-weight:700; cursor:pointer;
+         background:var(--ink); color:#fff; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:48px; }
+  .btn-light { background:#fff; color:var(--ink); }
+  .btn-mint { background:var(--mint); }
+  .btn-ghost { background:transparent; color:var(--ink); box-shadow:inset 0 0 0 1.5px var(--line); }
+  .btn-danger { background:transparent; color:var(--red); box-shadow:inset 0 0 0 1.5px #F2C4BF; }
+  .btn-block { width:100%; }
+  button:disabled { opacity:.6; }
+  input[type=text], input[type=password], input[type=email], textarea {
+         width:100%; padding:13px 14px; border:1.5px solid var(--line); border-radius:14px; font:inherit; background:#FDFCF9; color:var(--ink); }
+  input:focus, textarea:focus { outline:none; border-color:var(--ink2); box-shadow:0 0 0 3px rgba(15,82,87,.15); background:#fff; }
+  :focus-visible { outline:3px solid #1b5fd1; outline-offset:2px; }
+  textarea { min-height:320px; line-height:1.55; }
+  label { display:block; font-size:14px; font-weight:600; margin:14px 0 6px; }
+  .pill { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; font-size:12.5px; font-weight:700; background:#EFEBE2; color:var(--muted); white-space:nowrap; }
+  .pill.ready_for_review { background:var(--mint-bg); color:#0B5B41; }
+  .pill.submitted_confirmed, .pill.applied_by_user { background:var(--mint); color:#fff; }
+  .pill.needs_info, .pill.submission_unknown, .pill.watch_only { background:var(--coral-bg); color:var(--coral); }
+  .pill.failed, .pill.blocked { background:var(--red-bg); color:var(--red); }
+  .pill.prefilling, .pill.approved, .pill.submitting, .pill.new { background:var(--gold-bg); color:var(--gold); }
+  .section-title { display:flex; align-items:center; gap:8px; margin:22px 4px 10px; font-family:var(--round); font-weight:800; font-size:17px; }
+  .section-title .count { background:var(--ink); color:#fff; border-radius:999px; font-size:12px; padding:1px 8px; }
+  .section-title.coral .count { background:var(--coral); }
+  .section-title.mint .count { background:var(--mint); }
+  .job { display:flex; gap:14px; align-items:center; background:var(--card); border-radius:18px; padding:14px; margin-bottom:10px; box-shadow:var(--shadow); text-decoration:none; color:inherit; }
+  .job .t { font-weight:700; line-height:1.3; }
+  .job .h { font-size:13.5px; color:var(--muted); margin-top:2px; }
+  .job .go { margin-left:auto; color:var(--muted); font-size:22px; }
+  .ring { --p:0; flex:0 0 52px; width:52px; height:52px; border-radius:50%; display:grid; place-items:center;
+          background:conic-gradient(var(--mint) calc(var(--p)*1%), #E9E4D9 0); }
+  .ring b { width:42px; height:42px; border-radius:50%; background:#fff; display:grid; place-items:center; font-family:var(--round); font-size:14px; }
+  .ring.big { flex-basis:76px; width:76px; height:76px; } .ring.big b { width:62px; height:62px; font-size:20px; }
+  .empty { text-align:center; padding:28px 18px; }
+  .empty img { width:56px; opacity:.9; }
+  .steps { list-style:none; padding:0; margin:0; }
+  .steps li { display:flex; align-items:center; gap:12px; padding:10px 0; border-top:1px solid var(--line); }
+  .steps li:first-child { border-top:0; }
+  .tick { width:28px; height:28px; border-radius:50%; display:grid; place-items:center; flex:0 0 28px; font-weight:800; font-size:14px;
+          background:#EFEBE2; color:var(--muted); }
+  .done .tick { background:var(--mint); color:#fff; }
+  .done span.s { color:var(--muted); text-decoration:line-through; }
+  .steps a { margin-left:auto; font-weight:700; text-decoration:none; }
+  details.card summary { cursor:pointer; font-weight:700; list-style:none; }
+  details.card summary::-webkit-details-marker { display:none; }
+  details.card summary::after { content:"›"; float:right; transform:rotate(90deg); transition:transform .2s; }
+  details[open].card summary::after { transform:rotate(270deg); }
+  .warn { background:var(--coral-bg); color:#7C2D12; border-radius:14px; padding:12px 14px; margin-bottom:12px; }
+  .warn ul { margin:6px 0 0; padding-left:18px; }
+  .note { background:#F3EFE6; border-radius:14px; padding:12px 14px; white-space:pre-wrap; font-size:14px; }
+  img.shot { width:100%; border-radius:14px; border:1px solid var(--line); display:block; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:0 14px; }
+  .actionbar { position:fixed; left:0; right:0; bottom:calc(72px + env(safe-area-inset-bottom)); z-index:6; padding:10px 16px;
+               background:linear-gradient(to top, var(--paper) 70%, rgba(246,243,236,0)); }
+  .actionbar .inner { max-width:760px; margin:0 auto; }
+  .has-actionbar { padding-bottom:calc(170px + env(safe-area-inset-bottom)); }
+  nav.tabs { position:fixed; left:0; right:0; bottom:0; z-index:7; background:#fff; border-top:1px solid var(--line);
+             padding:6px 8px calc(6px + env(safe-area-inset-bottom)); display:flex; justify-content:space-around; }
+  nav.tabs a { flex:1; max-width:140px; display:flex; flex-direction:column; align-items:center; gap:2px; padding:6px 0; border-radius:14px;
+               text-decoration:none; color:var(--muted); font-size:12px; font-weight:700; position:relative; }
+  nav.tabs a svg { width:24px; height:24px; }
+  nav.tabs a.on { color:var(--ink); background:#F3EFE6; }
+  nav.tabs .badge { position:absolute; top:2px; left:calc(50% + 6px); background:var(--dot); color:#fff; font-size:11px; border-radius:999px; padding:0 6px; line-height:17px; }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
 </style>
 </head>
-<body>
-<header><a href="/">Hospital Auto-Apply</a></header>
+<body class="{% block bodyclass %}{% endblock %}">
+<header class="top">
+  <a class="brand" href="/"><img src="/static/logo.svg" alt="">PulseApply</a>
+  <span class="spacer"></span>
+  {% block topright %}{% endblock %}
+</header>
 <main>
-{% if msg %}<div class="msg">{{ msg }}</div>{% endif %}
+{% if msg %}<div class="msg" role="status">{{ msg }}</div>{% endif %}
 {% block body %}{% endblock %}
 </main>
+{% if tab is defined %}
+{% set needs = (counts.get('ready_for_review', 0) + counts.get('needs_info', 0) + counts.get('submission_unknown', 0)) if counts is defined else 0 %}
+<nav class="tabs" aria-label="Main">
+  <a href="/" class="{{ 'on' if tab in ['home', 'job'] }}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg>
+    Jobs{% if needs %}<span class="badge">{{ needs }}</span>{% endif %}</a>
+  <a href="/profile" class="{{ 'on' if tab == 'profile' }}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
+    Me</a>
+  <a href="/logins" class="{{ 'on' if tab == 'logins' }}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V8l8-5 8 5v13"/><path d="M9 21v-6h6v6"/><path d="M12 7v4M10 9h4"/></svg>
+    Hospitals</a>
+</nav>
+{% endif %}
 </body>
 </html>

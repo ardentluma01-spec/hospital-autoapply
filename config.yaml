@@ -64,6 +64,12 @@ hospitals:
     login_env: RCH
     enabled: true
 
+  - name: Austin Health (Austin, Heidelberg Repat, Royal Talbot)
+    careers_url: https://careers.austin.org.au
+    platform: successfactors
+    login_env: AUSTIN
+    enabled: true
+
   - name: Monash Health
     careers_url: https://careers.monashhealth.org
     platform: successfactors

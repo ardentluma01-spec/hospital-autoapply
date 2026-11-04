@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>About you</h1>
+<p class="muted">The robot uses this to fill in applications. Anything it isn't sure about, it asks you instead of guessing.</p>
+
+<section class="card" id="resume">
+  <h2>Resume</h2>
+  {% if resume %}
+    <p class="row"><span class="pill ready_for_review">✓ uploaded</span> <a href="/resume/download">{{ resume }}</a></p>
+  {% else %}
+    <p class="muted">No resume yet. Upload a PDF or Word file.</p>
+  {% endif %}
+  <form method="post" action="/resume" enctype="multipart/form-data" class="stack">
+    <label for="rf" style="margin:0">{{ 'Replace it' if resume else 'Choose your resume' }}</label>
+    <input id="rf" type="file" name="file" accept=".pdf,.docx" required>
+    <button class="btn-block">Upload</button>
+  </form>
+</section>
+
+<section class="card" id="profile">
+  <h2>Your details</h2>
+  <form method="post" action="/profile">
+    <div class="grid">
+      {% for key, lbl in fields %}
+      <div><label for="p_{{ key }}">{{ lbl }}</label><input id="p_{{ key }}" type="text" name="{{ key }}" value="{{ profile.get(key, '') }}"></div>
+      {% endfor %}
+    </div>
+    <p><button class="btn-block">Save details</button></p>
+  </form>
+</section>
+
+<section class="card" id="app">
+  <h2>App</h2>
+  <p class="muted">Version {{ version }} · {{ 'Approves every application with you first' if cfg.mode != 'auto' else 'Submits automatically' }}</p>
+  {% if update %}
+    <p class="small">
+      {% if update.state == 'running' %}⏳ Updating since {{ update.at }}… refresh in a minute.
+      {% elif update.state == 'done' %}✓ Updated to {{ update.version }} ({{ update.at }}).
+      {% else %}Last update failed ({{ update.at }}): {{ update.error }}{% endif %}
+    </p>
+  {% endif %}
+  <form method="post" action="/update" onsubmit="return confirm('Download and install the latest version? Your settings, logins and jobs are kept. The app restarts (about 1-3 minutes).')">
+    <button class="btn-ghost btn-block">Update to the latest version</button>
+  </form>
+</section>
+{% endblock %}

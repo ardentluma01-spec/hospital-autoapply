@@ -1,16 +1,19 @@
 {% extends "base.html" %}
 {% block body %}
-<div class="card" style="max-width:520px;margin:20px auto">
-  <h2>Welcome! One-time setup</h2>
-  <p class="muted">This page only appears until setup is done. Nothing here is shared; it's saved only on your server.</p>
+<section class="hero" style="text-align:center">
+  <img src="/static/logo.svg" alt="" style="width:64px;height:64px;border-radius:16px">
+  <h1 style="color:#fff;margin-top:10px">Welcome to PulseApply</h1>
+  <p class="muted" style="margin:0">One-time setup. Everything stays on your own server.</p>
+</section>
+<section class="card">
   <form method="post" action="/setup" autocomplete="off">
-    <label for="sc">Setup code (the one you typed in the Vultr startup script)</label><input id="sc" type="text" name="setup_code" required>
-    <label for="dp">Choose a dashboard password (10+ characters)</label><input id="dp" type="password" name="dashboard_password" minlength="10" required style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit">
-    <label for="ak">Claude API key (starts with sk-ant-)</label><input id="ak" type="text" name="anthropic_key" required>
-    <label for="gm">Your Gmail address (sends you the emails)</label><input id="gm" type="text" name="gmail" required>
-    <label for="gp">Gmail app password (16 letters)</label><input id="gp" type="text" name="gmail_app_password" required>
-    <label for="nt">Send notifications to (leave blank = same Gmail)</label><input id="nt" type="text" name="notify_to">
-    <p><button>Save and start</button></p>
+    <label for="sc">Setup code <span class="muted">(from your Vultr startup script)</span></label><input id="sc" type="text" name="setup_code" required autocapitalize="off">
+    <label for="dp">Choose a dashboard password <span class="muted">(10+ characters)</span></label><input id="dp" type="password" name="dashboard_password" minlength="10" required>
+    <label for="ak">Claude API key <span class="muted">(starts with sk-ant-)</span></label><input id="ak" type="text" name="anthropic_key" required autocapitalize="off">
+    <label for="gm">Your Gmail address</label><input id="gm" type="email" name="gmail" required autocapitalize="off">
+    <label for="gp">Gmail app password <span class="muted">(16 letters)</span></label><input id="gp" type="text" name="gmail_app_password" required autocapitalize="off">
+    <label for="nt">Send notifications to <span class="muted">(blank = same Gmail)</span></label><input id="nt" type="email" name="notify_to" autocapitalize="off">
+    <p><button class="btn-block">Save and start</button></p>
   </form>
-</div>
+</section>
 {% endblock %}

@@ -1,4 +1,4 @@
-# Hospital Auto-Apply (personal version)
+# PulseApply: hospital job robot (personal version)
 
 Your own private robot on a small cloud server. Every hour it checks the hospital careers sites for PSA and nursing jobs. For each good match it:
 
@@ -86,3 +86,8 @@ systemctl restart autoapply         # restart
 
 ## Privacy
 Everything stays on your server: resume, answers, screenshots (deleted after 30 days) and your hospital passwords (encrypted). Your resume text and job ads are sent to Anthropic's Claude AI to score jobs and write letters.
+
+## Updating
+Dashboard → **Me** → **Update to the latest version**. Your settings, logins and jobs are kept.
+(Older installs without that button: Vultr → View Console, log in as root, run
+`curl -fsSL https://raw.githubusercontent.com/ardentluma01-spec/hospital-autoapply/main/deploy/update.sh | bash`)
