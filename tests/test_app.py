@@ -198,3 +198,24 @@ def test_nurse_jobs_hidden_and_failed_ai_retried(env, monkeypatch):
     monkeypatch.setattr(matcher, "_ask", boom)
     r = matcher.assess({"title": "PSA", "description": "x", "hospital": "H"}, "resume", {}, "m")
     assert not r["ok"] and "no credit" in r["reason"]
+
+
+def test_settings_tab_updates_keys(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+    from app import main
+    monkeypatch.setattr(main, "ROOT", tmp_path.parent / tmp_path.name)
+    (tmp_path / ".env").write_text("DASHBOARD_PASSWORD=pw\nANTHROPIC_API_KEY=sk-ant-old1111\n")
+    import shutil
+    shutil.copy(Path(__file__).resolve().parent.parent / "config.yaml", tmp_path / "config.yaml")
+    monkeypatch.setenv("DASHBOARD_PASSWORD", "pw-long-enough")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-old1111")
+    c = TestClient(main.app); a = ("me", "pw-long-enough")
+    page = c.get("/settings", auth=a)
+    assert page.status_code == 200 and "sk-ant-…1111" in page.text and "old1111" not in page.text.replace("…1111", "")
+    r = c.post("/settings/keys", auth=a, data={"anthropic_key": "not-a-key"}, follow_redirects=False)
+    assert "look like" in r.headers["location"].replace("%27", "'").replace("%20", " ")
+    c.post("/settings/keys", auth=a, data={"anthropic_key": "sk-ant-new2222", "gmail": "me@gmail.com"}, follow_redirects=False)
+    saved = (tmp_path / ".env").read_text()
+    assert "ANTHROPIC_API_KEY=sk-ant-new2222" in saved and "GMAIL_ADDRESS=me@gmail.com" in saved
+    r = c.post("/settings/password", auth=a, data={"current": "wrong", "new": "another-long-pw"}, follow_redirects=False)
+    assert "wrong" in r.headers["location"]

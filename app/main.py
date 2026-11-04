@@ -157,6 +157,8 @@ def _page(request: Request, tab: str, msg: str):
         "profile": profile, "fields": PROFILE_FIELDS, "steps": steps, "setup_done": all(s[1] for s in steps), "version": version,
         "last_check": db.get_kv("last_check", "never"), "msg": msg,
         "logins": logins, "label": LABELS, "update": db.get_kv("update_status"),
+        "keys": {"ai": (lambda k: f"sk-ant-…{k[-4:]}" if k else "")(env("ANTHROPIC_API_KEY")),
+                 "gmail": env("GMAIL_ADDRESS"), "gmail_pw": bool(env("GMAIL_APP_PASSWORD")), "notify_to": env("NOTIFY_TO")},
         "tests": {h.get("login_env"): db.get_kv(f"login_test:{h.get('login_env')}") for h in cfg["hospitals"]},
         "env_logins": {h.get("login_env"): bool(env(f"{h.get('login_env')}_PASSWORD")) for h in cfg["hospitals"]},
     })
@@ -170,6 +172,60 @@ def home(request: Request, msg: str = ""):
 @app.get("/profile", dependencies=[Depends(auth)])
 def profile_page(request: Request, msg: str = ""):
     return _page(request, "profile", msg)
+
+
+@app.get("/settings", dependencies=[Depends(auth)])
+def settings_page(request: Request, msg: str = ""):
+    return _page(request, "settings", msg)
+
+
+@app.post("/settings/keys", dependencies=[Depends(auth)])
+def save_keys(anthropic_key: str = Form(""), gmail: str = Form(""), gmail_app_password: str = Form(""), notify_to: str = Form("")):
+    from . import matcher
+    upd = {}
+    key = anthropic_key.strip()
+    if key:
+        if not key.startswith("sk-ant-"):
+            return RedirectResponse("/settings?msg=That doesn't look like a Claude API key (it starts with sk-ant-)#keys", 303)
+        upd["ANTHROPIC_API_KEY"] = key
+    if gmail.strip():
+        upd["GMAIL_ADDRESS"] = gmail.strip()
+    if gmail_app_password.strip():
+        upd["GMAIL_APP_PASSWORD"] = gmail_app_password.replace(" ", "").strip()
+    upd["NOTIFY_TO"] = (notify_to or gmail or env("GMAIL_ADDRESS")).strip()
+    _write_env(upd)
+    matcher._client = None      # use the new key straight away
+    return RedirectResponse("/settings?msg=Saved. Tap Test Claude key to check it works.#keys", 303)
+
+
+@app.post("/settings/test-ai", dependencies=[Depends(auth)])
+def test_ai():
+    from . import matcher
+    try:
+        matcher._client = None
+        matcher.client().messages.create(model=config()["ai_model"], max_tokens=5, messages=[{"role": "user", "content": "Say OK"}])
+        msg = "✓ The Claude key works."
+    except Exception as e:  # noqa: BLE001
+        msg = "Claude key problem: " + matcher.explain_ai_error(e)
+    return RedirectResponse(f"/settings?msg={msg}#keys", 303)
+
+
+@app.post("/settings/test-email", dependencies=[Depends(auth)])
+def test_email():
+    from . import notify
+    ok = notify.send("PulseApply test email", "If you're reading this, notifications work.")
+    msg = f"✓ Test email sent to {env('NOTIFY_TO') or env('GMAIL_ADDRESS')}" if ok else "Couldn't send the email - check the Gmail address and app password"
+    return RedirectResponse(f"/settings?msg={msg}#keys", 303)
+
+
+@app.post("/settings/password", dependencies=[Depends(auth)])
+def change_password(current: str = Form(...), new: str = Form(...)):
+    if not secrets.compare_digest(current, env("DASHBOARD_PASSWORD", "")):
+        return RedirectResponse("/settings?msg=Current password is wrong#password", 303)
+    if len(new) < 10:
+        return RedirectResponse("/settings?msg=New password must be at least 10 characters#password", 303)
+    _write_env({"DASHBOARD_PASSWORD": new})
+    return RedirectResponse("/?msg=Password changed. Log in again with the new one.", 303)
 
 
 @app.get("/logins", dependencies=[Depends(auth)])
@@ -202,20 +258,20 @@ def save_search(include: str = Form(""), exclude: str = Form(""), min_score: int
         return out[:60]
     inc = lst(include)
     if not inc:
-        return RedirectResponse("/profile?msg=Add at least one job title to look for#search", 303)
+        return RedirectResponse("/settings?msg=Add at least one job title to look for#search", 303)
     path = ROOT / "config.yaml"
     cfg = yaml.safe_load(path.read_text())
     cfg["include_keywords"], cfg["exclude_keywords"] = inc, lst(exclude)
     cfg["min_match_score"] = max(0, min(100, int(min_score)))
     path.write_text(yaml.safe_dump(cfg, sort_keys=False, allow_unicode=True))
     hidden = pipeline.hide_non_matching(cfg)
-    return RedirectResponse(f"/profile?msg=Saved. {hidden} job(s) that don't match were moved to 'Not a match'.#search", 303)
+    return RedirectResponse(f"/settings?msg=Saved. {hidden} job(s) that don't match were moved to 'Not a match'.#search", 303)
 
 
 @app.post("/update", dependencies=[Depends(auth)])
 def update_app():
     _background(_do_update)
-    return RedirectResponse("/profile?msg=Updating - this takes 1-3 minutes, then refresh the page#app", 303)
+    return RedirectResponse("/settings?msg=Updating - this takes 1-3 minutes, then refresh the page#app", 303)
 
 
 @app.post("/resume", dependencies=[Depends(auth)])
