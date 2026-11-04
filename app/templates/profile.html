@@ -30,6 +30,20 @@
   </form>
 </section>
 
+<section class="card" id="search">
+  <h2>Jobs to look for</h2>
+  <p class="muted">A job is considered only if its title contains one of the first list and none of the second. Separate with commas.</p>
+  <form method="post" action="/search">
+    <label for="inc">Job titles to look for</label>
+    <textarea id="inc" name="include" style="min-height:110px">{{ cfg.include_keywords | join(', ') }}</textarea>
+    <label for="exc">Skip titles containing</label>
+    <textarea id="exc" name="exclude" style="min-height:110px">{{ cfg.exclude_keywords | join(', ') }}</textarea>
+    <label for="ms">Minimum match score (0–100)</label>
+    <input id="ms" type="text" inputmode="numeric" name="min_score" value="{{ cfg.min_match_score }}">
+    <p><button class="btn-block">Save &amp; tidy my job list</button></p>
+  </form>
+</section>
+
 <section class="card" id="app">
   <h2>App</h2>
   <p class="muted">Version {{ version }} · {{ 'Approves every application with you first' if cfg.mode != 'auto' else 'Submits automatically' }}</p>

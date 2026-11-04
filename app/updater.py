@@ -19,6 +19,11 @@ import yaml
 
 TARBALL = "https://codeload.github.com/ardentluma01-spec/hospital-autoapply/tar.gz/refs/heads/main"
 ROOT = Path(__file__).resolve().parent.parent
+OLD_DEFAULTS = {
+    "include_keywords": [["patient services", "psa", "patient service assistant", "ward assistant", "personal care",
+                          "enrolled nurse", "registered nurse", "nurse"]],
+    "exclude_keywords": [["manager", "director", "educator", "midwife", "pharmacist", "registrar", "medical officer", "specialist"]],
+}
 REPLACE = ["app", "deploy", "requirements.txt", "README.md", "install.sh", "VERSION", ".env.example"]
 
 
@@ -32,6 +37,10 @@ def _merge_config(new_cfg: Path, cur_cfg: Path):
     added = [h for h in new.get("hospitals", []) if h.get("login_env") not in have]
     for k, v in new.items():          # new settings the old file didn't have
         cur.setdefault(k, v)
+    # if the keyword lists are still an older version's defaults (never edited), use the new defaults
+    for k in ("include_keywords", "exclude_keywords"):
+        if sorted(cur.get(k) or []) in [sorted(d) for d in OLD_DEFAULTS.get(k, [])]:
+            cur[k] = new.get(k, cur[k])
     if added:
         cur.setdefault("hospitals", []).extend(added)
     cur_cfg.write_text(yaml.safe_dump(cur, sort_keys=False, allow_unicode=True))

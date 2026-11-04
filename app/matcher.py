@@ -125,6 +125,24 @@ def letter_warnings(letter: str, resume_text: str, facts: dict) -> list[str]:
     return out
 
 
+def explain_ai_error(e: Exception) -> str:
+    msg = str(e).lower()
+    name = type(e).__name__
+    if "credit balance" in msg or "billing" in msg:
+        return "your Claude account has no credit. Add credit at console.anthropic.com (Billing)."
+    if name == "AuthenticationError" or "x-api-key" in msg or "invalid api key" in msg:
+        return "the Claude API key wasn't accepted. Check it at console.anthropic.com (API keys)."
+    if name == "PermissionDeniedError":
+        return "the Claude API key doesn't have permission to use this model."
+    if name == "NotFoundError" or "model" in msg and "not found" in msg:
+        return "the AI model name in config.yaml isn't available."
+    if name in ("RateLimitError", "OverloadedError", "InternalServerError", "APIConnectionError", "APITimeoutError"):
+        return "the AI service was busy or unreachable."
+    if isinstance(e, (ValueError, KeyError)):
+        return "the AI's answer wasn't in the expected format."
+    return f"{name}."
+
+
 def assess(job: dict, resume_text: str, facts: dict, model: str) -> dict:
     """Returns {"score", "reason", "cover_letter", "warnings", "ok"}. ok=False means don't proceed."""
     prompt = f"""<resume>
@@ -163,7 +181,8 @@ Reply with JSON only: {{"score": 0, "reason": "", "cover_letter": ""}}"""
         letter, reason = letter[:6000], reason[:600]
     except Exception as e:  # noqa: BLE001
         log.warning("AI assess failed/invalid: %s", e)
-        return {"score": None, "reason": "The AI check failed, so this job wasn't assessed.", "cover_letter": "", "warnings": [], "ok": False}
+        return {"score": None, "reason": f"The AI check failed: {explain_ai_error(e)} It will be retried automatically on the next check.",
+                "cover_letter": "", "warnings": [], "ok": False}
     return {"score": score, "reason": reason, "cover_letter": letter,
             "warnings": letter_warnings(letter, resume_text, facts), "ok": True}
 

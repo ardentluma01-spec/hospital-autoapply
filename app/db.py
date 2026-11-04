@@ -57,7 +57,8 @@ def init():
 
 
 def now() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M")
+    from zoneinfo import ZoneInfo
+    return datetime.now(ZoneInfo("Australia/Melbourne")).strftime("%a %d %b, %-I:%M %p")
 
 
 def add_job(job: dict) -> int | None:

@@ -190,6 +190,28 @@ def _do_update():
     os._exit(0)   # systemd restarts the app on the new version within ~10 s
 
 
+@app.post("/search", dependencies=[Depends(auth)])
+def save_search(include: str = Form(""), exclude: str = Form(""), min_score: int = Form(65)):
+    import yaml
+    def lst(t):
+        out = []
+        for x in t.replace("\n", ",").split(","):
+            x = x.strip().lower()
+            if x and x not in out:
+                out.append(x[:60])
+        return out[:60]
+    inc = lst(include)
+    if not inc:
+        return RedirectResponse("/profile?msg=Add at least one job title to look for#search", 303)
+    path = ROOT / "config.yaml"
+    cfg = yaml.safe_load(path.read_text())
+    cfg["include_keywords"], cfg["exclude_keywords"] = inc, lst(exclude)
+    cfg["min_match_score"] = max(0, min(100, int(min_score)))
+    path.write_text(yaml.safe_dump(cfg, sort_keys=False, allow_unicode=True))
+    hidden = pipeline.hide_non_matching(cfg)
+    return RedirectResponse(f"/profile?msg=Saved. {hidden} job(s) that don't match were moved to 'Not a match'.#search", 303)
+
+
 @app.post("/update", dependencies=[Depends(auth)])
 def update_app():
     _background(_do_update)

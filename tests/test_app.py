@@ -84,7 +84,7 @@ def test_finds_fills_but_never_submits_without_approval(env):
     assert j["status"] == "ready_for_review", j["note"]
     assert j["submit_attempted_at"] is None and Path(j["screenshot"]).exists()
     assert any("Ready to submit" in s for s in env.sent)
-    assert pipeline.check_for_jobs().endswith("0 new matching jobs"), "same vacancy must not be added twice"
+    assert ", 0 new matching jobs" in pipeline.check_for_jobs(), "same vacancy must not be added twice"
 
 
 def test_approve_submits_once_with_confirmation(env):
@@ -180,3 +180,21 @@ def test_login_through_cookie_banner_profile_menu_and_two_step(server):
     assert ok["ok"], ok["note"]
     bad = sf.test_login(f"{server.url}/sf/", "alex@example.com", "nope", None)
     assert not bad["ok"] and "wrong" in bad["note"]
+
+
+def test_nurse_jobs_hidden_and_failed_ai_retried(env, monkeypatch):
+    import yaml
+    cfg = yaml.safe_load((Path(__file__).resolve().parent.parent / "config.yaml").read_text())
+    for t in ["Registered Nurse G2", "Registered Anaesthetic Nurse", "PSA Team Leader"]:
+        assert not sources.title_matches(t, cfg), t
+    for t in ["Patient Services Assistant", "PSA - Casual Pool", "Patient Services Assist G2", "Environmental Services Officer"]:
+        assert sources.title_matches(t, cfg), t
+    nurse = db.add_job({"url": "n", "job_key": "n", "hospital": "Test Health", "title": "Registered Nurse G2"})
+    db.update_job(nurse, status="failed")
+    assert pipeline.hide_non_matching(cfg) == 1 and status(nurse) == "cancelled"
+    # AI error message is explained
+    def boom(*a):
+        raise RuntimeError("Your credit balance is too low to access the Anthropic API")
+    monkeypatch.setattr(matcher, "_ask", boom)
+    r = matcher.assess({"title": "PSA", "description": "x", "hospital": "H"}, "resume", {}, "m")
+    assert not r["ok"] and "no credit" in r["reason"]

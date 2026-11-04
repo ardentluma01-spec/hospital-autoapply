@@ -14,24 +14,36 @@ check_every_minutes: 60
 # Only consider jobs whose title contains one of these (case-insensitive)
 include_keywords:
   - patient services
+  - patient service
   - psa
-  - patient service assistant
+  - patient support
+  - patient transport
   - ward assistant
-  - personal care
-  - enrolled nurse
-  - registered nurse
-  - nurse
+  - wardsperson
+  - orderly
+  - environmental services
+  - hospital assistant
+  - support services assistant
+  - food services assistant
 
 # Skip any job whose title contains one of these
 exclude_keywords:
+  - nurse
+  - midwife
   - manager
   - director
+  - coordinator
+  - team leader
+  - supervisor
   - educator
-  - midwife
   - pharmacist
   - registrar
   - medical officer
+  - doctor
   - specialist
+  - consultant
+  - therapist
+  - psychologist
 
 # AI match score (0-100) needed before the bot prepares an application
 min_match_score: 65

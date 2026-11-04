@@ -89,10 +89,42 @@ def check_for_jobs() -> str:
             except Exception as e:  # noqa: BLE001
                 log.exception("Processing %s failed", j["url"])
                 db.update_job(job_id, status="failed", note=f"Error: {type(e).__name__}")
+        hidden = hide_non_matching(cfg)
+        retried = retry_failed_assessments(cfg)
         db.set_kv("last_check", db.now())
-        return f"Checked {len(listings)} listings, {new} new matching jobs"
+        return f"Checked {len(listings)} listings, {new} new matching jobs, {retried} retried, {hidden} hidden"
     finally:
         _lock.release()
+
+
+UNTOUCHED = ("new", "failed", "needs_info", "skipped", "blocked", "ready_for_review", "watch_only")
+
+
+def hide_non_matching(cfg: dict) -> int:
+    """Jobs found under older/looser title rules that no longer match are moved to 'Not a match'.
+    Anything approved, being submitted or submitted is never touched."""
+    n = 0
+    for j in db.list_jobs(2000):
+        if j["status"] in UNTOUCHED and not j["submit_attempted_at"] and not sources.title_matches(j["title"] or "", cfg):
+            db.update_job(j["id"], status="cancelled", note="Hidden: doesn't match the job titles you're looking for")
+            n += 1
+    return n
+
+
+def retry_failed_assessments(cfg: dict, limit: int = 10) -> int:
+    """Re-run jobs whose AI check failed (e.g. no credit at the time). Never touches submissions."""
+    n = 0
+    for j in db.list_jobs(2000):
+        if n >= limit:
+            break
+        if j["status"] == "failed" and j["score"] is None and not j["submit_attempted_at"]:
+            db.update_job(j["id"], status="new", note="")
+            try:
+                process(j["id"], cfg)
+            except Exception as e:  # noqa: BLE001
+                db.update_job(j["id"], status="failed", note=f"Error: {type(e).__name__}")
+            n += 1
+    return n
 
 
 def process(job_id: int, cfg: dict):
