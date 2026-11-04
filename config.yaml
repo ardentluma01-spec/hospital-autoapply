@@ -1,0 +1,93 @@
+# ---------------------------------------------------------------
+# Hospital Auto-Apply — settings
+# Edit this file, then restart the app (sudo systemctl restart autoapply)
+# ---------------------------------------------------------------
+
+# How the bot behaves when it finds a good match:
+#   approve = fill the form, screenshot it, email you, wait for you to tap "Approve & submit"  (recommended)
+#   auto    = fill AND submit straight away, then email you
+mode: approve          # keep this: you approve every submission
+
+# How often to check for new jobs (minutes)
+check_every_minutes: 60
+
+# Only consider jobs whose title contains one of these (case-insensitive)
+include_keywords:
+  - patient services
+  - psa
+  - patient service assistant
+  - ward assistant
+  - personal care
+  - enrolled nurse
+  - registered nurse
+  - nurse
+
+# Skip any job whose title contains one of these
+exclude_keywords:
+  - manager
+  - director
+  - educator
+  - midwife
+  - pharmacist
+  - registrar
+  - medical officer
+  - specialist
+
+# AI match score (0-100) needed before the bot prepares an application
+min_match_score: 65
+
+# Claude model used for matching and cover letters
+ai_model: claude-sonnet-5-5
+
+# ---------------------------------------------------------------
+# Hospitals to watch.
+#   platform: successfactors  -> fully supported (search + auto-fill)
+#   platform: workday         -> watch only for now (you'll get an email with the link)
+#   login_env: name prefix for this site's login in .env, e.g. WESTERN_EMAIL / WESTERN_PASSWORD
+# ---------------------------------------------------------------
+hospitals:
+  - name: Western Health (Sunshine, Footscray, Williamstown)
+    careers_url: https://careers.wh.org.au
+    platform: successfactors
+    login_env: WESTERN
+    enabled: true
+
+  - name: Eastern Health (Box Hill, Maroondah, Angliss)
+    careers_url: https://careers.easternhealth.org.au
+    platform: successfactors
+    login_env: EASTERN
+    enabled: true
+
+  - name: Royal Children's Hospital
+    careers_url: https://careers.rch.org.au
+    platform: successfactors
+    login_env: RCH
+    enabled: true
+
+  - name: Monash Health
+    careers_url: https://careers.monashhealth.org
+    platform: successfactors
+    login_env: MONASH
+    enabled: false
+
+  - name: Peter MacCallum Cancer Centre
+    careers_url: https://careers.petermac.org
+    platform: successfactors
+    login_env: PETERMAC
+    enabled: false
+
+  # Northern Health uses SuccessFactors too, but its job-search address
+  # needs confirming. Open their careers page, click "Current vacancies",
+  # paste the address you land on here, then set enabled: true.
+  - name: Northern Health (The Northern Hospital, Epping)
+    careers_url: PASTE-NORTHERN-HEALTH-CAREERS-ADDRESS-HERE
+    platform: successfactors
+    login_env: NORTHERN
+    enabled: false
+
+  # St Vincent's uses Workday. Watch-only in this version.
+  - name: St Vincent's Hospital Melbourne
+    careers_url: https://www.svhm.org.au/careers
+    platform: workday
+    login_env: SVHM
+    enabled: false

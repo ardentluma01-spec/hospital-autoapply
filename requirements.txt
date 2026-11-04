@@ -1,0 +1,15 @@
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9
+jinja2>=3.1
+pyyaml>=6.0
+python-dotenv>=1.0
+httpx>=0.27
+feedparser>=6.0
+beautifulsoup4>=4.12
+anthropic>=0.40
+apscheduler>=3.10,<4
+playwright>=1.44
+pypdf>=4.0
+python-docx>=1.1
+cryptography>=42

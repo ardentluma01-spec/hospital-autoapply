@@ -1,0 +1,15 @@
+[Unit]
+Description=Hospital Auto-Apply
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=autoapply
+WorkingDirectory=/opt/autoapply
+ExecStart=/opt/autoapply/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,10 @@
+<div id="login"><label for=u>Email</label><input id=u type=email>
+<label for=p>Password</label><input id=p type=password>
+<button onclick="if(document.getElementById('p').value==='pw'){document.getElementById('login').remove();document.getElementById('app').hidden=false}else{document.getElementById('err').textContent='Invalid password'}">Sign in</button><div id=err></div></div>
+<div id="app" hidden><form onsubmit="document.body.innerHTML='<h1>Processing...</h1>';return false;">
+<label for="r">Resume</label><input id="r" type="file">
+<label for="c">Cover letter</label><input id="c" type="file">
+<label for="ph">Mobile phone</label><input id="ph" required>
+<fieldset><legend>Do you hold a current Working With Children Check?</legend>
+<label><input type="radio" name="wwcc" required value="y">Yes</label><label><input type="radio" name="wwcc" value="n">No</label></fieldset>
+<button type="submit">Submit</button></form></div>

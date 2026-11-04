@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hospital Auto-Apply</title>
+<style>
+  :root { --ink:#1d2630; --muted:#647282; --line:#e3e8ee; --bg:#f6f8fa; --accent:#0b6e69; --warn:#b4540a; --bad:#b42318; --ok:#16794a; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif; color:var(--ink); background:var(--bg); }
+  header { background:#fff; border-bottom:1px solid var(--line); padding:14px 18px; display:flex; justify-content:space-between; align-items:center; }
+  header a { color:var(--ink); text-decoration:none; font-weight:650; }
+  main { max-width:960px; margin:0 auto; padding:18px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:16px; }
+  h2 { font-size:16px; margin:0 0 10px; }
+  .muted { color:var(--muted); font-size:13px; }
+  .msg { background:#e8f4f3; border:1px solid #b8dcd9; border-radius:10px; padding:10px 14px; margin-bottom:16px; }
+  button, .btn { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:9px 14px; font:inherit; font-weight:600; cursor:pointer; text-decoration:none; display:inline-block; }
+  .btn.secondary, button.secondary { background:#fff; color:var(--ink); border:1px solid var(--line); }
+  button.danger { background:#fff; color:var(--bad); border:1px solid #f1c4c0; }
+  input[type=text], textarea { width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font:inherit; }
+  textarea { min-height:280px; }
+  label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
+  table { width:100%; border-collapse:collapse; }
+  td, th { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; font-size:14px; }
+  th { color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.03em; }
+  .pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:12px; font-weight:600; background:#eef1f4; color:var(--muted); white-space:nowrap; }
+  .pill.ready, .pill.ready_for_review { background:#e6f4ee; color:var(--ok); } .pill.submitted, .pill.submitted_confirmed, .pill.applied_by_user { background:var(--ok); color:#fff; }
+  .pill.needs_you, .pill.needs_info, .pill.submission_unknown { background:#fdf0e3; color:#8a3f06; } .pill.failed, .pill.blocked { background:#fde8e6; color:var(--bad); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:0 16px; }
+  img.shot { width:100%; border:1px solid var(--line); border-radius:8px; }
+  pre { white-space:pre-wrap; background:var(--bg); padding:10px; border-radius:8px; font-size:13px; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<header><a href="/">Hospital Auto-Apply</a></header>
+<main>
+{% if msg %}<div class="msg">{{ msg }}</div>{% endif %}
+{% block body %}{% endblock %}
+</main>
+</body>
+</html>

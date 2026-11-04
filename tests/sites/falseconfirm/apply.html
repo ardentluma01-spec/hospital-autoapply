@@ -1,0 +1,7 @@
+<div id="login"><label for=u>Email</label><input id=u type=email>
+<label for=p>Password</label><input id=p type=password>
+<button onclick="if(document.getElementById('p').value==='pw'){document.getElementById('login').remove();document.getElementById('app').hidden=false}">Sign in</button></div>
+<div id="app" hidden><p>Once your application has been submitted you will receive an email from our recruitment team.</p>
+<form onsubmit="document.getElementById('e').textContent='Error: your session expired. Nothing was sent.';return false;">
+<label for="r">Resume</label><input id="r" type="file">
+<button type="submit">Submit</button><p id="e" role="alert"></p></form></div>

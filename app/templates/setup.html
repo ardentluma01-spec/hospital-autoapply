@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="card" style="max-width:520px;margin:20px auto">
+  <h2>Welcome! One-time setup</h2>
+  <p class="muted">This page only appears until setup is done. Nothing here is shared; it's saved only on your server.</p>
+  <form method="post" action="/setup" autocomplete="off">
+    <label for="sc">Setup code (the one you typed in the Vultr startup script)</label><input id="sc" type="text" name="setup_code" required>
+    <label for="dp">Choose a dashboard password (10+ characters)</label><input id="dp" type="password" name="dashboard_password" minlength="10" required style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit">
+    <label for="ak">Claude API key (starts with sk-ant-)</label><input id="ak" type="text" name="anthropic_key" required>
+    <label for="gm">Your Gmail address (sends you the emails)</label><input id="gm" type="text" name="gmail" required>
+    <label for="gp">Gmail app password (16 letters)</label><input id="gp" type="text" name="gmail_app_password" required>
+    <label for="nt">Send notifications to (leave blank = same Gmail)</label><input id="nt" type="text" name="notify_to">
+    <p><button>Save and start</button></p>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block body %}
+<p><a href="/">← All jobs</a></p>
+
+<div class="card">
+  <h2>{{ job.title }}</h2>
+  <div class="muted">{{ job.hospital }}{% if job.location %} · {{ job.location }}{% endif %} · found {{ job.found_at }}</div>
+  <p class="row" style="margin-top:10px">
+    <span class="pill {{ job.status }}">{{ label.get(job.status, job.status) }}</span>
+    {% if job.score is not none %}<span class="pill">match {{ job.score }}%</span>{% endif %}
+    <a href="{{ job.url }}" target="_blank" rel="noopener">Open job ad ↗</a>
+  </p>
+  {% if job.reason %}<p>{{ job.reason }}</p>{% endif %}
+  {% if job.note %}<pre>{{ job.note }}</pre>{% endif %}
+
+  <div class="row">
+    {% if job.status == 'ready_for_review' and not job.submit_attempted_at %}
+      <form method="post" action="/job/{{ job.id }}/approve" onsubmit="return confirm('Submit this application to the hospital now? Check the screenshot below first.')"><button>Approve &amp; submit</button></form>
+    {% endif %}
+    {% if job.status == 'submission_unknown' %}
+      <form method="post" action="/job/{{ job.id }}/checked"><input type="hidden" name="outcome" value="yes"><button>I checked: it WAS submitted</button></form>
+      <form method="post" action="/job/{{ job.id }}/checked"><input type="hidden" name="outcome" value="no"><button class="secondary">I checked: it was NOT submitted</button></form>
+    {% endif %}
+    {% if job.status in ['needs_info', 'failed', 'blocked', 'ready_for_review'] and not job.submit_attempted_at %}
+      <form method="post" action="/job/{{ job.id }}/retry"><button class="secondary">Re-fill form</button></form>
+    {% endif %}
+    {% if job.status not in ['approved', 'submitting', 'submitted_confirmed', 'submission_unknown', 'applied_by_user'] %}
+      <form method="post" action="/job/{{ job.id }}/mark-applied"><button class="secondary">I applied myself</button></form>
+      <form method="post" action="/job/{{ job.id }}/skip"><button class="danger">Skip this job</button></form>
+    {% endif %}
+  </div>
+</div>
+
+{% if questions %}
+<div class="card">
+  <h2>Questions only you can answer</h2>
+  <p class="muted">The robot never guesses factual answers (certificates, checks, work rights...). Your answers are saved and reused on future applications.</p>
+  <form method="post" action="/job/{{ job.id }}/answers">
+    {% for q in questions %}
+      <label>{{ q }}</label><input type="text" name="q::{{ q }}">
+    {% endfor %}
+    <p><button>Save answers &amp; retry</button></p>
+  </form>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Cover letter</h2>
+  {% if warnings %}<div class="msg" style="background:#fdf0e3;border-color:#f0c79a"><b>Check before approving:</b><ul>{% for w in warnings %}<li>{{ w }}</li>{% endfor %}</ul></div>{% endif %}
+  <form method="post" action="/job/{{ job.id }}/letter">
+    <textarea name="cover_letter">{{ job.cover_letter or '' }}</textarea>
+    <p><button class="secondary">Save changes</button> <span class="muted">Then tap "Re-fill form" so the new version is uploaded.</span></p>
+  </form>
+</div>
+
+{% if has_shot %}
+<div class="card">
+  <h2>What the bot filled in</h2>
+  <img class="shot" src="/job/{{ job.id }}/screenshot" alt="Screenshot of the application form">
+</div>
+{% endif %}
+{% endblock %}

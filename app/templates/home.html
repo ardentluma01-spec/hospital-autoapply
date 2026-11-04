@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% set mode = cfg.mode %}
+{% block body %}
+
+<div class="card">
+  <div class="row" style="justify-content:space-between">
+    <div>
+      <h2 style="margin:0">Status</h2>
+      <div class="muted">Last check: {{ last_check }} · checks every {{ cfg.check_every_minutes }} min ·
+        {% if cfg.mode == 'auto' %}submits automatically{% else %}waits for your approval{% endif %}</div>
+    </div>
+    <form method="post" action="/check"><button>Check for jobs now</button></form>
+  </div>
+  <div class="row" style="margin-top:10px">
+    {% for s, n in counts.items() %}<span class="pill {{ s }}">{{ label.get(s, s) }}: {{ n }}</span>{% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <h2>Jobs found</h2>
+  {% if jobs %}
+  <table>
+    <tr><th>Job</th><th>Match</th><th>Status</th></tr>
+    {% for j in jobs %}
+    <tr>
+      <td><a href="/job/{{ j.id }}">{{ j.title }}</a><div class="muted">{{ j.hospital }} · found {{ j.found_at }}</div></td>
+      <td>{{ j.score if j.score is not none else '–' }}{% if j.score is not none %}%{% endif %}</td>
+      <td><span class="pill {{ j.status }}">{{ label.get(j.status, j.status) }}</span></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="muted">Nothing yet. Upload your resume, fill in your profile, then tap "Check for jobs now".</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Your resume</h2>
+  {% if resume %}<p>Current: <a href="/resume/download">{{ resume }}</a></p>{% else %}<p class="muted">No resume uploaded yet.</p>{% endif %}
+  <form method="post" action="/resume" enctype="multipart/form-data" class="row">
+    <input type="file" name="file" accept=".pdf,.docx" required>
+    <button>Upload</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Your profile</h2>
+  <p class="muted">The bot uses these to answer application questions. If something isn't here, it stops and asks you instead of guessing.</p>
+  <form method="post" action="/profile">
+    <div class="grid">
+      {% for key, label in fields %}
+      <div><label>{{ label }}</label><input type="text" name="{{ key }}" value="{{ profile.get(key, '') }}"></div>
+      {% endfor %}
+    </div>
+    <p><button>Save profile</button></p>
+  </form>
+</div>
+
+<div class="card" id="logins">
+  <h2>Hospital logins</h2>
+  <p class="muted">Enter the email and password you already use on each hospital's careers site.
+    Passwords are stored encrypted on your server and never shown again. Leave the password blank to keep the saved one.</p>
+  {% for h in cfg.hospitals %}
+    {% set le = h.login_env %}
+    {% set saved = logins.get(le, {}) %}
+    {% set t = tests.get(le) %}
+    <div style="border-top:1px solid var(--line); padding:12px 0">
+      <div class="row" style="justify-content:space-between">
+        <div>
+          {% if 'PASTE' in h.careers_url %}<b>{{ h.name }}</b>{% else %}<a href="{{ h.careers_url }}" target="_blank" rel="noopener"><b>{{ h.name }}</b></a>{% endif %}
+          <div class="muted">{{ h.platform }}{% if h.platform == 'workday' %} · watch-only for now{% endif %}</div>
+        </div>
+        <div class="row">
+          <span class="pill {{ 'ready' if h.enabled else '' }}">{{ 'on' if h.enabled else 'off' }}</span>
+          {% if t and t.ok %}<span class="pill submitted">login works</span>
+          {% elif t and t.ok is false %}<span class="pill failed">login failed</span>
+          {% elif t %}<span class="pill">testing…</span>
+          {% elif saved.has_password or env_logins.get(le) %}<span class="pill">saved, not tested</span>
+          {% else %}<span class="pill needs_you">no login</span>{% endif %}
+        </div>
+      </div>
+      <form method="post" action="/login/{{ le }}">
+        <div class="grid">
+          <div><label>Email</label><input type="text" name="email" value="{{ saved.email or '' }}" autocomplete="off"></div>
+          <div><label>Password {% if saved.has_password %}(saved ✓){% endif %}</label>
+            <input type="password" name="password" placeholder="{{ '••••••••' if saved.has_password else '' }}" autocomplete="new-password"
+              style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit"></div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="secondary">Save</button>
+          <button class="secondary" formaction="/login/{{ le }}/test">Test login</button>
+          {% if t and t.screenshot %}<a href="/login/{{ le }}/screenshot" target="_blank">See screenshot</a>{% endif %}
+        </div>
+        {% if t and t.note %}<div class="muted" style="margin-top:6px">{{ t.note }} · {{ t.at }}</div>{% endif %}
+      </form>
+    </div>
+  {% endfor %}
+  <p class="muted">Turn hospitals on/off in config.yaml on the server.</p>
+</div>
+{% endblock %}
