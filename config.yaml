@@ -94,14 +94,13 @@ hospitals:
     login_env: PETERMAC
     enabled: false
 
-  # Northern Health uses SuccessFactors too, but its job-search address
-  # needs confirming. Open their careers page, click "Current vacancies",
-  # paste the address you land on here, then set enabled: true.
+  # Northern Health uses the older SuccessFactors board: the robot FINDS jobs and writes the
+  # letter, then emails you the link (no automatic form filling there yet).
   - name: Northern Health (The Northern Hospital, Epping)
-    careers_url: PASTE-NORTHERN-HEALTH-CAREERS-ADDRESS-HERE
-    platform: successfactors
+    careers_url: https://career10.successfactors.com/career?company=northernhe
+    platform: successfactors_legacy
     login_env: NORTHERN
-    enabled: false
+    enabled: true
 
   # St Vincent's uses Workday. Watch-only in this version.
   - name: St Vincent's Hospital Melbourne

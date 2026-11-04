@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block body %}
+<section class="hero" style="text-align:center">
+  <img src="/static/logo.svg" alt="" style="width:64px;height:64px;border-radius:16px">
+  <h1 style="color:#fff;margin-top:10px">{{ 'Enter your PIN' if mode == 'pin' else 'Sign in' }}</h1>
+  <p class="muted" style="margin:0">{{ 'Welcome back.' if mode == 'pin' else 'Your dashboard password. You only need it once on this device.' }}</p>
+</section>
+<section class="card">
+  {% if mode == 'pin' %}
+  <form method="post" action="/unlock" id="pf">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label for="pin" class="sr-only" style="position:absolute;left:-9999px">PIN</label>
+    <input id="pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" required autofocus
+      style="text-align:center;font-size:30px;letter-spacing:12px;font-family:var(--round)">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px" aria-hidden="true">
+      {% for k in ['1','2','3','4','5','6','7','8','9','⌫','0','✓'] %}
+      <button type="button" class="{{ 'btn-mint' if k == '✓' else 'btn-ghost' }}" style="font-size:22px;min-height:60px" data-k="{{ k }}">{{ k }}</button>
+      {% endfor %}
+    </div>
+  </form>
+  <p class="muted small" style="text-align:center"><a href="/login?next={{ next }}">Use password instead</a></p>
+  <script>
+    const pin = document.getElementById('pin');
+    document.querySelectorAll('[data-k]').forEach(b => b.onclick = () => {
+      const k = b.dataset.k;
+      if (k === '⌫') pin.value = pin.value.slice(0, -1);
+      else if (k === '✓') { if (pin.value.length >= 4) document.getElementById('pf').submit(); }
+      else if (pin.value.length < 6) pin.value += k;
+    });
+  </script>
+  {% else %}
+  <form method="post" action="/login">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label for="pw">Dashboard password</label>
+    <input id="pw" name="password" type="password" required autofocus autocomplete="current-password">
+    <p><button class="btn-block">Sign in</button></p>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

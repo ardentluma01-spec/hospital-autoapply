@@ -50,10 +50,11 @@ def _sf_from_rss(base: str, hospital: str) -> list[dict]:
     return jobs
 
 
-def _sf_from_search(base: str, hospital: str, pages: int = 3) -> list[dict]:
+def _sf_from_search(base: str, hospital: str, pages: int = 3, q: str = "") -> list[dict]:
+    from urllib.parse import quote_plus
     jobs = []
     for page in range(pages):
-        url = f"{base}/search/?q=&sortColumn=referencedate&sortDirection=desc&startrow={page * 25}"
+        url = f"{base}/search/?q={quote_plus(q)}&sortColumn=referencedate&sortDirection=desc&startrow={page * 25}"
         if page:
             time.sleep(POLITE_DELAY_S)
         try:
@@ -90,13 +91,57 @@ def _sf_from_search(base: str, hospital: str, pages: int = 3) -> list[dict]:
     return out
 
 
-def successfactors_jobs(hospital: dict) -> list[dict]:
+def successfactors_jobs(hospital: dict, queries=()) -> list[dict]:
+    """Newest listings (RSS / first pages) PLUS a site search for each of your job titles, so older
+    PSA ads on big job boards aren't missed."""
     base = hospital["careers_url"].rstrip("/")
     jobs = _sf_from_rss(base, hospital["name"])
     if not jobs:
         jobs = _sf_from_search(base, hospital["name"])
-    log.info("%s: %d listings", hospital["name"], len(jobs))
-    return jobs
+    for q in queries:
+        time.sleep(POLITE_DELAY_S)
+        jobs += _sf_from_search(base, hospital["name"], pages=2, q=q)
+    seen, out = set(), []
+    for j in jobs:
+        if j.get("url") and j.get("title") and j["url"] not in seen:
+            seen.add(j["url"])
+            out.append(j)
+    log.info("%s: %d listings", hospital["name"], len(out))
+    return out
+
+
+def legacy_successfactors_jobs(hospital: dict, max_pages: int = 8) -> list[dict]:
+    """Older SAP SuccessFactors boards (career10.successfactors.com/career?company=...) are built with
+    JavaScript, so they're read with the browser. Job links carry 'career_job_req_id'."""
+    from playwright.sync_api import sync_playwright
+    out, seen = [], set()
+    with sync_playwright() as p:
+        b = p.chromium.launch(headless=True)
+        page = b.new_page()
+        try:
+            page.goto(hospital["careers_url"], wait_until="networkidle", timeout=60000)
+            for _ in range(max_pages):
+                for a in page.locator('a[href*="career_job_req_id"], a[href*="jobReqId"]').all():
+                    try:
+                        href, title = a.get_attribute("href") or "", (a.inner_text() or "").strip()
+                    except Exception:  # noqa: BLE001
+                        continue
+                    url = urljoin(page.url, href)
+                    if title and url not in seen and len(title) < 200:
+                        seen.add(url)
+                        out.append({"hospital": hospital["name"], "title": title, "url": url, "location": "", "posted": ""})
+                nxt = page.get_by_role("link", name=re.compile(r"^\s*(next|›|>|»)\s*$", re.I))
+                if not nxt.count():
+                    break
+                nxt.first.click(timeout=8000)
+                page.wait_for_load_state("networkidle", timeout=30000)
+                time.sleep(POLITE_DELAY_S)
+        except Exception as e:  # noqa: BLE001
+            log.warning("Legacy board %s failed: %s", hospital["name"], e)
+        finally:
+            b.close()
+    log.info("%s: %d listings (legacy board)", hospital["name"], len(out))
+    return out
 
 
 def same_site(url: str, careers_url: str) -> bool:
@@ -133,14 +178,28 @@ def clean_url(url: str) -> str:
 def job_description(url: str) -> str:
     """Full ad text from the job page (for the AI to read)."""
     time.sleep(POLITE_DELAY_S)
+    text = ""
     try:
         soup = BeautifulSoup(_get(url).text, "html.parser")
+        node = (soup.select_one(".jobdescription") or soup.select_one('[itemprop="description"]')
+                or soup.select_one(".job") or soup.body)
+        text = node.get_text("\n", strip=True)[:12000] if node else ""
     except Exception as e:  # noqa: BLE001
         log.warning("Could not open %s: %s", url, e)
-        return ""
-    node = (soup.select_one(".jobdescription") or soup.select_one('[itemprop="description"]')
-            or soup.select_one(".job") or soup.body)
-    return node.get_text("\n", strip=True)[:12000] if node else ""
+    if len(text) >= 300:
+        return text
+    # JavaScript-built pages (older job boards): read with the browser
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            b = p.chromium.launch(headless=True)
+            pg = b.new_page()
+            pg.goto(url, wait_until="networkidle", timeout=45000)
+            text = pg.inner_text("body")[:12000]
+            b.close()
+    except Exception as e:  # noqa: BLE001
+        log.warning("Browser read of %s failed: %s", url, e)
+    return text
 
 
 def title_matches(title: str, cfg: dict) -> bool:
@@ -158,14 +217,15 @@ def title_matches(title: str, cfg: dict) -> bool:
     return False
 
 
-def fetch_for(hospitals: list[dict]) -> list[dict]:
-    """Listings from every given SuccessFactors hospital (each site read once, shared by all users)."""
+def fetch_for(hospitals: list[dict], queries=()) -> list[dict]:
+    """Listings from every given hospital."""
     found = []
     for h in hospitals:
-        if h["platform"] != "successfactors" or not h.get("careers_url"):
+        if h["platform"] not in ("successfactors", "successfactors_legacy") or not h.get("careers_url"):
             continue
         try:
-            for j in successfactors_jobs(h):
+            listing = successfactors_jobs(h, queries) if h["platform"] == "successfactors" else legacy_successfactors_jobs(h)
+            for j in listing:
                 if not same_site(j["url"], h["careers_url"]):
                     log.warning("Ignoring off-site listing link %s", j["url"][:120])
                     continue
@@ -182,6 +242,8 @@ def fetch_all(cfg: dict) -> list[dict]:
     """Single-user version: hospitals come from config.yaml."""
     hs = []
     for h in cfg.get("hospitals", []):
-        if h.get("enabled") and h.get("platform") == "successfactors" and h.get("careers_url", "").startswith("http"):
+        if h.get("enabled") and h.get("careers_url", "").startswith("http"):
             hs.append({**h, "login_env": h.get("login_env", "")})
-    return fetch_for(hs)
+    # search terms: your job titles, skipping tiny ones like "psa" (matched in titles anyway)
+    queries = [k for k in cfg.get("include_keywords", []) if len(k) > 3][:8]
+    return fetch_for(hs, queries)

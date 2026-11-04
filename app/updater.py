@@ -33,6 +33,10 @@ def _merge_config(new_cfg: Path, cur_cfg: Path):
         return
     cur = yaml.safe_load(cur_cfg.read_text()) or {}
     new = yaml.safe_load(new_cfg.read_text()) or {}
+    # replace placeholder entries (e.g. Northern Health "PASTE..." address) with the new version's entry
+    newmap = {h.get("login_env"): h for h in new.get("hospitals", [])}
+    cur["hospitals"] = [newmap.get(h.get("login_env"), h) if "PASTE" in str(h.get("careers_url", "")) else h
+                        for h in cur.get("hospitals", [])]
     have = {h.get("login_env") for h in cur.get("hospitals", [])}
     added = [h for h in new.get("hospitals", []) if h.get("login_env") not in have]
     for k, v in new.items():          # new settings the old file didn't have

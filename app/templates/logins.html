@@ -32,7 +32,7 @@
       <p class="small"><a href="{{ h.careers_url }}" target="_blank" rel="noopener">Open careers site ↗</a></p>
       <form method="post" action="/login/{{ le }}">
         <label for="e_{{ le }}">Email</label>
-        <input id="e_{{ le }}" type="email" name="email" value="{{ saved.email or '' }}" autocomplete="off" autocapitalize="off">
+        <input id="e_{{ le }}" type="text" inputmode="email" autocorrect="off" spellcheck="false" name="email" value="{{ saved.email or '' }}" autocomplete="off" autocapitalize="off">
         <label for="pw_{{ le }}">Password {% if has %}<span class="muted">(saved ✓)</span>{% endif %}</label>
         <input id="pw_{{ le }}" type="password" name="password" placeholder="{{ '••••••••' if has else '' }}" autocomplete="new-password">
         <div class="row" style="margin-top:14px">

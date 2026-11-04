@@ -145,7 +145,7 @@ def test_dashboard_refuses_approve_when_not_ready(env):
     from app.main import app
     jid = db.add_job({"url": "u2", "job_key": "k2", "hospital": "Test Health", "title": "PSA"})
     c = TestClient(app)
-    assert c.get("/").status_code == 401
+    assert c.get("/", follow_redirects=False).status_code == 303
     r = c.post(f"/job/{jid}/approve", auth=("me", "pw"), follow_redirects=False)
     assert r.status_code == 303 and "can't be submitted" in r.headers["location"].replace("%27", "'").replace("%20", " ")
     assert c.get("/", auth=("me", "pw")).status_code == 200
@@ -166,12 +166,13 @@ def test_first_run_setup_page(monkeypatch, tmp_path):
             "gmail": "me@gmail.com", "gmail_app_password": "abcd efgh ijkl mnop"}
     assert "wrong" in c.post("/setup", data=form, follow_redirects=False).headers["location"]
     form["setup_code"] = "blue-kangaroo"
-    assert c.post("/setup", data=form, follow_redirects=False).headers["location"].startswith("/?msg=All")
+    assert c.post("/setup", data=form, follow_redirects=False).headers["location"].startswith("/login?msg=All")
     saved = (tmp_path / ".env").read_text()
     assert "DASHBOARD_PASSWORD=a-long-password" in saved and "GMAIL_APP_PASSWORD=abcdefghijklmnop" in saved
     assert "SETUP_CODE=\n" in saved and "PUBLIC_URL=https://x" in saved, "setup code cleared, other settings kept"
     assert c.get("/setup", follow_redirects=False).headers["location"] == "/"       # can't be reused
-    assert c.get("/").status_code == 401 and c.get("/", auth=("me", "a-long-password")).status_code == 200
+    assert c.get("/", follow_redirects=False).headers["location"].startswith("/login")
+    assert c.get("/", auth=("me", "a-long-password")).status_code == 200
 
 
 def test_login_through_cookie_banner_profile_menu_and_two_step(server):
@@ -219,3 +220,52 @@ def test_settings_tab_updates_keys(monkeypatch, tmp_path):
     assert "ANTHROPIC_API_KEY=sk-ant-new2222" in saved and "GMAIL_ADDRESS=me@gmail.com" in saved
     r = c.post("/settings/password", auth=a, data={"current": "wrong", "new": "another-long-pw"}, follow_redirects=False)
     assert "wrong" in r.headers["location"]
+
+
+def test_pin_signin_flow(monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import authn, main
+    monkeypatch.setenv("DASHBOARD_PASSWORD", "pw-long-enough")
+    authn.clear_pin(); authn.forget_all_devices()
+    c = TestClient(main.app)
+    assert c.get("/", follow_redirects=False).headers["location"].startswith("/login")
+    assert "Wrong" in c.post("/login", data={"password": "nope"}, follow_redirects=False).headers["location"]
+    r = c.post("/login", data={"password": "pw-long-enough"}, follow_redirects=False)
+    assert "#pin" in r.headers["location"]                                  # first login -> set a PIN
+    assert c.get("/", follow_redirects=False).status_code == 200            # now signed in
+    assert "match" in c.post("/settings/pin", data={"pin": "2468", "pin2": "1111"}, follow_redirects=False).headers["location"]
+    c.post("/settings/pin", data={"pin": "2468", "pin2": "2468"}, follow_redirects=False)
+    c.cookies.delete(authn.SESSION_COOKIE)                                  # 12 hours later...
+    assert c.get("/", follow_redirects=False).headers["location"].startswith("/unlock")
+    assert c.post("/unlock", data={"pin": "2468"}, follow_redirects=False).headers["location"] == "/"
+    assert c.get("/", follow_redirects=False).status_code == 200
+    # 5 wrong PINs -> back to password
+    c.cookies.delete(authn.SESSION_COOKIE)
+    for _ in range(5):
+        r = c.post("/unlock", data={"pin": "0000"}, follow_redirects=False)
+    assert r.headers["location"].startswith("/login")
+    assert c.get("/", follow_redirects=False).headers["location"].startswith("/login")
+
+
+def test_legacy_board_and_title_search(server, monkeypatch):
+    got = sources.legacy_successfactors_jobs({"name": "Northern", "careers_url": f"{server.url}/legacy/index.html"})
+    assert sorted(j["title"] for j in got) == ["Environmental Services Officer", "Patient Services Assistant - Casual", "Registered Nurse"]
+    seen = []
+    monkeypatch.setattr(sources, "_sf_from_rss", lambda b, h: [])
+    monkeypatch.setattr(sources, "_sf_from_search", lambda b, h, pages=3, q="": seen.append(q) or [])
+    sources.successfactors_jobs({"name": "X", "careers_url": "https://x"}, ["patient services", "ward assistant"])
+    assert "patient services" in seen and "ward assistant" in seen
+
+
+def test_notify_accepts_screenshot_bytes(monkeypatch):
+    sent = []
+
+    class S:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+        def login(self, u, p): pass
+        def send_message(self, m): sent.append(m)
+    monkeypatch.setattr(notify.smtplib, "SMTP_SSL", S)
+    monkeypatch.setenv("GMAIL_ADDRESS", "me@gmail.com"); monkeypatch.setenv("GMAIL_APP_PASSWORD", "abcd")
+    assert notify._email("Hi", "body", b"\x89PNG...") and sent and sent[0].is_multipart()

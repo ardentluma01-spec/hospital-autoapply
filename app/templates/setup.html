@@ -10,9 +10,9 @@
     <label for="sc">Setup code <span class="muted">(from your Vultr startup script)</span></label><input id="sc" type="text" name="setup_code" required autocapitalize="off">
     <label for="dp">Choose a dashboard password <span class="muted">(10+ characters)</span></label><input id="dp" type="password" name="dashboard_password" minlength="10" required>
     <label for="ak">Claude API key <span class="muted">(starts with sk-ant-)</span></label><input id="ak" type="text" name="anthropic_key" required autocapitalize="off">
-    <label for="gm">Your Gmail address</label><input id="gm" type="email" name="gmail" required autocapitalize="off">
+    <label for="gm">Your Gmail address</label><input id="gm" type="text" inputmode="email" autocorrect="off" spellcheck="false" name="gmail" required autocapitalize="off">
     <label for="gp">Gmail app password <span class="muted">(16 letters)</span></label><input id="gp" type="text" name="gmail_app_password" required autocapitalize="off">
-    <label for="nt">Send notifications to <span class="muted">(blank = same Gmail)</span></label><input id="nt" type="email" name="notify_to" autocapitalize="off">
+    <label for="nt">Send notifications to <span class="muted">(blank = same Gmail)</span></label><input id="nt" type="text" inputmode="email" autocorrect="off" spellcheck="false" name="notify_to" autocapitalize="off">
     <p><button class="btn-block">Save and start</button></p>
   </form>
 </section>

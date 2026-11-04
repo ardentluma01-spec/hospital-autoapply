@@ -1,6 +1,7 @@
 """Web dashboard + background scheduler.  Run:  uvicorn app.main:app --host 0.0.0.0 --port 8000"""
 import logging
 import os
+import re
 import secrets
 import threading
 import time
@@ -12,7 +13,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 
-from . import db, pipeline, resume, vault
+from . import authn, db, pipeline, resume, vault
 from .settings import ROOT, config, env
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -22,7 +23,7 @@ app = FastAPI(title="PulseApply")
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 app.mount("/static", StaticFiles(directory=str(ROOT / "app" / "static")), name="static")
 templates = Jinja2Templates(directory=str(ROOT / "app" / "templates"))
-security = HTTPBasic()
+security = HTTPBasic(auto_error=False)
 
 LABELS = {"new": "found", "skipped": "not a match", "needs_info": "needs your answer", "ready_for_review": "ready - tap Approve",
           "prefilling": "filling form...", "approved": "approved", "submitting": "submitting...", "submitted_confirmed": "submitted (confirmed)",
@@ -107,14 +108,90 @@ def setup_save(setup_code: str = Form(...), dashboard_password: str = Form(...),
         "GMAIL_ADDRESS": gmail.strip(), "GMAIL_APP_PASSWORD": gmail_app_password.replace(" ", "").strip(),
         "NOTIFY_TO": (notify_to or gmail).strip(), "SETUP_CODE": "",
     })
-    return RedirectResponse("/?msg=All set! Log in with user: me and the password you just chose.", 303)
+    return RedirectResponse("/login?msg=All set! Sign in with the password you just chose.", 303)
 
 
-def auth(creds: HTTPBasicCredentials = Depends(security)):
-    ok_user = secrets.compare_digest(creds.username, env("DASHBOARD_USER", "me"))
-    ok_pw = secrets.compare_digest(creds.password, env("DASHBOARD_PASSWORD", ""))
-    if not (ok_user and ok_pw and env("DASHBOARD_PASSWORD")):
-        raise HTTPException(401, headers={"WWW-Authenticate": "Basic"})
+def _password_ok(pw: str) -> bool:
+    real = env("DASHBOARD_PASSWORD", "")
+    return bool(real) and secrets.compare_digest(pw or "", real)
+
+
+def auth(request: Request, creds: HTTPBasicCredentials | None = Depends(security)):
+    """Signed in = valid 'unlocked' cookie for a remembered device (or HTTP basic, kept for scripts)."""
+    if creds and secrets.compare_digest(creds.username, env("DASHBOARD_USER", "me")) and _password_ok(creds.password):
+        return
+    dev = request.cookies.get(authn.DEVICE_COOKIE)
+    if authn.session_ok(request.cookies.get(authn.SESSION_COOKIE), dev):
+        return
+    nxt = request.url.path if request.method == "GET" else "/"
+    where = "/unlock" if authn.device_ok(dev) and authn.pin_set() else "/login"
+    raise HTTPException(303, headers={"Location": f"{where}?next={nxt}"})
+
+
+def _https(request: Request) -> bool:
+    return request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
+
+
+def _signed_in(resp: RedirectResponse, request: Request, device: str, new_device: bool):
+    sec = _https(request)
+    if new_device:
+        resp.set_cookie(authn.DEVICE_COOKIE, device, max_age=authn.DEVICE_DAYS * 86400, httponly=True, secure=sec, samesite="lax")
+    resp.set_cookie(authn.SESSION_COOKIE, authn.session_value(device), max_age=authn.UNLOCK_HOURS * 3600,
+                    httponly=True, secure=sec, samesite="lax")
+    return resp
+
+
+def _safe_next(nxt: str) -> str:
+    return nxt if nxt.startswith("/") and not nxt.startswith("//") else "/"
+
+
+_login_fails = {"n": 0}
+
+
+@app.get("/login")
+def login_page(request: Request, next: str = "/", msg: str = ""):
+    return templates.TemplateResponse(request, "login.html", {"next": _safe_next(next), "msg": msg, "mode": "password"})
+
+
+@app.post("/login")
+def login_submit(request: Request, password: str = Form(...), next: str = Form("/")):
+    if not _password_ok(password):
+        _login_fails["n"] += 1
+        time.sleep(min(5, _login_fails["n"]))
+        return RedirectResponse(f"/login?msg=Wrong password&next={_safe_next(next)}", 303)
+    _login_fails["n"] = 0
+    authn.forget_device(request.cookies.get(authn.DEVICE_COOKIE))
+    dev = authn.new_device(request.headers.get("user-agent", "device"))
+    dest = _safe_next(next) if authn.pin_set() else "/settings?msg=Welcome! Set a PIN below so next time you only need the PIN.#pin"
+    return _signed_in(RedirectResponse(dest, 303), request, dev, True)
+
+
+@app.get("/unlock")
+def unlock_page(request: Request, next: str = "/", msg: str = ""):
+    if not (authn.device_ok(request.cookies.get(authn.DEVICE_COOKIE)) and authn.pin_set()):
+        return RedirectResponse(f"/login?next={_safe_next(next)}", 303)
+    return templates.TemplateResponse(request, "login.html", {"next": _safe_next(next), "msg": msg, "mode": "pin"})
+
+
+@app.post("/unlock")
+def unlock_submit(request: Request, pin: str = Form(...), next: str = Form("/")):
+    dev = request.cookies.get(authn.DEVICE_COOKIE)
+    ok, left = authn.check_pin(pin.strip(), dev or "")
+    if ok:
+        return _signed_in(RedirectResponse(_safe_next(next), 303), request, dev, False)
+    time.sleep(1)
+    if left <= 0:
+        return RedirectResponse("/login?msg=Too many wrong PINs - please use your password", 303)
+    return RedirectResponse(f"/unlock?msg=Wrong PIN ({left} tries left)&next={_safe_next(next)}", 303)
+
+
+@app.post("/logout")
+def logout(request: Request):
+    authn.forget_device(request.cookies.get(authn.DEVICE_COOKIE))
+    resp = RedirectResponse("/login?msg=Signed out", 303)
+    resp.delete_cookie(authn.DEVICE_COOKIE)
+    resp.delete_cookie(authn.SESSION_COOKIE)
+    return resp
 
 
 def _background(fn, *args):
@@ -157,6 +234,8 @@ def _page(request: Request, tab: str, msg: str):
         "profile": profile, "fields": PROFILE_FIELDS, "steps": steps, "setup_done": all(s[1] for s in steps), "version": version,
         "last_check": db.get_kv("last_check", "never"), "msg": msg,
         "logins": logins, "label": LABELS, "update": db.get_kv("update_status"),
+        "pin_set": authn.pin_set(), "push_topic": env("NTFY_TOPIC"), "topic_suggestion": "pulseapply-" + secrets.token_hex(6),
+        "notify_last": __import__("app.notify", fromlist=["LAST"]).LAST,
         "keys": {"ai": (lambda k: f"sk-ant-…{k[-4:]}" if k else "")(env("ANTHROPIC_API_KEY")),
                  "gmail": env("GMAIL_ADDRESS"), "gmail_pw": bool(env("GMAIL_APP_PASSWORD")), "notify_to": env("NOTIFY_TO")},
         "tests": {h.get("login_env"): db.get_kv(f"login_test:{h.get('login_env')}") for h in cfg["hospitals"]},
@@ -180,7 +259,8 @@ def settings_page(request: Request, msg: str = ""):
 
 
 @app.post("/settings/keys", dependencies=[Depends(auth)])
-def save_keys(anthropic_key: str = Form(""), gmail: str = Form(""), gmail_app_password: str = Form(""), notify_to: str = Form("")):
+def save_keys(anthropic_key: str = Form(""), gmail: str = Form(""), gmail_app_password: str = Form(""), notify_to: str = Form(""),
+              ntfy_topic: str = Form("")):
     from . import matcher
     upd = {}
     key = anthropic_key.strip()
@@ -193,6 +273,8 @@ def save_keys(anthropic_key: str = Form(""), gmail: str = Form(""), gmail_app_pa
     if gmail_app_password.strip():
         upd["GMAIL_APP_PASSWORD"] = gmail_app_password.replace(" ", "").strip()
     upd["NOTIFY_TO"] = (notify_to or gmail or env("GMAIL_ADDRESS")).strip()
+    if ntfy_topic.strip():
+        upd["NTFY_TOPIC"] = re.sub(r"[^A-Za-z0-9_-]", "", ntfy_topic)[:64]
     _write_env(upd)
     matcher._client = None      # use the new key straight away
     return RedirectResponse("/settings?msg=Saved. Tap Test Claude key to check it works.#keys", 303)
@@ -213,9 +295,19 @@ def test_ai():
 @app.post("/settings/test-email", dependencies=[Depends(auth)])
 def test_email():
     from . import notify
-    ok = notify.send("PulseApply test email", "If you're reading this, notifications work.")
-    msg = f"✓ Test email sent to {env('NOTIFY_TO') or env('GMAIL_ADDRESS')}" if ok else "Couldn't send the email - check the Gmail address and app password"
-    return RedirectResponse(f"/settings?msg={msg}#keys", 303)
+    from urllib.parse import quote
+    ok = notify._email("PulseApply test email", "If you're reading this, email notifications work.", None)
+    msg = f"✓ Test email sent to {env('NOTIFY_TO') or env('GMAIL_ADDRESS')}" if ok else "Email failed: " + notify.LAST["email"]
+    return RedirectResponse(f"/settings?msg={quote(msg)}#keys", 303)
+
+
+@app.post("/settings/test-push", dependencies=[Depends(auth)])
+def test_push():
+    from urllib.parse import quote
+    from . import notify
+    ok = notify._push("PulseApply test", "Phone notifications work. Tap to open your dashboard: " + env("PUBLIC_URL", ""))
+    msg = "✓ Sent - check your phone" if ok else notify.LAST["push"]
+    return RedirectResponse(f"/settings?msg={quote(msg)}#push", 303)
 
 
 @app.post("/settings/password", dependencies=[Depends(auth)])
@@ -225,7 +317,21 @@ def change_password(current: str = Form(...), new: str = Form(...)):
     if len(new) < 10:
         return RedirectResponse("/settings?msg=New password must be at least 10 characters#password", 303)
     _write_env({"DASHBOARD_PASSWORD": new})
-    return RedirectResponse("/?msg=Password changed. Log in again with the new one.", 303)
+    authn.forget_all_devices()
+    return RedirectResponse("/login?msg=Password changed - sign in with the new one", 303)
+
+
+@app.post("/settings/pin", dependencies=[Depends(auth)])
+def save_pin(pin: str = Form(""), pin2: str = Form(""), remove: str = Form("")):
+    if remove:
+        authn.clear_pin()
+        return RedirectResponse("/settings?msg=PIN removed - you'll use your password each time#pin", 303)
+    if not authn.valid_pin(pin.strip()):
+        return RedirectResponse("/settings?msg=The PIN must be 4 to 6 digits#pin", 303)
+    if pin.strip() != pin2.strip():
+        return RedirectResponse("/settings?msg=The two PINs didn't match#pin", 303)
+    authn.set_pin(pin.strip())
+    return RedirectResponse("/settings?msg=PIN saved. Next time on this phone, just enter your PIN.#pin", 303)
 
 
 @app.get("/logins", dependencies=[Depends(auth)])
