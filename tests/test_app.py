@@ -172,3 +172,11 @@ def test_first_run_setup_page(monkeypatch, tmp_path):
     assert "SETUP_CODE=\n" in saved and "PUBLIC_URL=https://x" in saved, "setup code cleared, other settings kept"
     assert c.get("/setup", follow_redirects=False).headers["location"] == "/"       # can't be reused
     assert c.get("/").status_code == 401 and c.get("/", auth=("me", "a-long-password")).status_code == 200
+
+
+def test_login_through_cookie_banner_profile_menu_and_two_step(server):
+    from app.applier import successfactors as sf
+    ok = sf.test_login(f"{server.url}/sf/", "alex@example.com", "pw", None)
+    assert ok["ok"], ok["note"]
+    bad = sf.test_login(f"{server.url}/sf/", "alex@example.com", "nope", None)
+    assert not bad["ok"] and "wrong" in bad["note"]

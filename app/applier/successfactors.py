@@ -74,22 +74,132 @@ def _cover_letter_file(job: dict) -> Path:
     return path
 
 
+COOKIE_RE = re.compile(r"^\s*(accept all cookies|accept all|accept cookies|allow all cookies|confirm my choices|i accept cookies)\s*$", re.I)
+SIGNIN_EXACT_RE = re.compile(r"^\s*(candidate )?(sign ?in|log ?in|login)\s*$", re.I)
+PROFILE_MENU_RE = re.compile(r"^\s*(view profile|my profile|profile|my account|account)\s*$", re.I)
+NEXT_RE = re.compile(r"^\s*(next|continue|sign ?in|log ?in)\s*$", re.I)
+EMAIL_SEL = ('input[type="email"]:visible, input[name*="user" i]:visible, input[id*="user" i]:visible, '
+             'input[name*="email" i]:visible, input[id*="email" i]:visible, input[autocomplete="username"]:visible')
+
+
+def _dismiss_cookies(page):
+    """Cookie banners cover the page and swallow clicks. Only cookie-specific buttons are pressed."""
+    for _ in range(2):
+        clicked = False
+        for role in ("button", "link"):
+            loc = page.get_by_role(role, name=COOKIE_RE)
+            for i in range(min(loc.count(), 3)):
+                try:
+                    if loc.nth(i).is_visible():
+                        loc.nth(i).click(timeout=3000)
+                        clicked = True
+                        page.wait_for_timeout(600)
+                        break
+                except Exception:  # noqa: BLE001
+                    continue
+            if clicked:
+                break
+        if not clicked:
+            return
+
+
+def _visible_click(page, pattern) -> bool:
+    for role in ("link", "button", "menuitem"):
+        loc = page.get_by_role(role, name=pattern)
+        for i in range(min(loc.count(), 5)):
+            try:
+                if loc.nth(i).is_visible():
+                    loc.nth(i).click(timeout=5000)
+                    return True
+            except Exception:  # noqa: BLE001
+                continue
+    return False
+
+
+def _has_login_form(page) -> bool:
+    if page.locator('input[type="password"]:visible').count():
+        return True
+    # two-step sign-in pages show only the email box first
+    return page.locator(EMAIL_SEL).count() > 0 and page.get_by_role("button", name=NEXT_RE).count() > 0
+
+
+def _open_signin(page) -> bool:
+    """Get from any careers page to a visible sign-in form (handles 'View profile' -> 'Sign In' menus)."""
+    _dismiss_cookies(page)
+    for _ in range(4):
+        if _has_login_form(page):
+            return True
+        if _visible_click(page, SIGNIN_EXACT_RE):
+            pass
+        elif _visible_click(page, PROFILE_MENU_RE):
+            page.wait_for_timeout(800)
+            if _visible_click(page, SIGNIN_EXACT_RE):
+                pass
+        else:
+            link = page.locator('a[href*="login" i]:visible, a[href*="signin" i]:visible').first
+            try:
+                link.click(timeout=4000)
+            except Exception:  # noqa: BLE001
+                return _has_login_form(page)
+        try:
+            page.wait_for_load_state("networkidle", timeout=20000)
+        except Exception:  # noqa: BLE001
+            pass
+        page.wait_for_timeout(800)
+        _dismiss_cookies(page)
+    return _has_login_form(page)
+
+
+def _what_i_see(page) -> str:
+    """Short description of the page for error messages (no personal data)."""
+    from urllib.parse import urlsplit
+    u = urlsplit(page.url)
+    labels = []
+    try:
+        for el in page.locator("button:visible, a:visible").all()[:40]:
+            t = (el.inner_text() or "").strip().replace("\n", " ")
+            if t and len(t) < 40 and t not in labels:
+                labels.append(t)
+    except Exception:  # noqa: BLE001
+        pass
+    return f"page: {u.hostname}{u.path} | buttons/links: {', '.join(labels[:12]) or 'none'}"
+
+
 def _login_if_needed(page, email: str, password: str) -> bool:
+    _dismiss_cookies(page)
     pw = page.locator('input[type="password"]:visible')
     if not pw.count():
-        return True
+        # two-step sign-in: email first, then a password page
+        user = page.locator(EMAIL_SEL)
+        if user.count() and email and page.get_by_role("button", name=NEXT_RE).count():
+            user.first.fill(email)
+            _visible_click(page, NEXT_RE)
+            page.wait_for_timeout(2500)
+            pw = page.locator('input[type="password"]:visible')
+            if not pw.count():
+                return False      # asked for the email but never showed a password box
+        if not pw.count():
+            return True
     if not (email and password):
         return False
-    user = page.locator(
-        'input[type="email"]:visible, input[name*="user" i]:visible, input[id*="user" i]:visible, '
-        'input[name*="email" i]:visible, input[id*="email" i]:visible'
-    )
+    user = page.locator(EMAIL_SEL)
     if user.count():
         user.first.fill(email)
     pw.first.fill(password)
-    if not _click_text(page, SIGNIN_RE):
+    # press the button in the SAME form as the password box, else Enter
+    form_btn = pw.first.locator("xpath=ancestor::form[1]").locator('button[type="submit"], input[type="submit"], button:not([type])')
+    try:
+        if form_btn.count():
+            form_btn.first.click(timeout=8000)
+        elif not _visible_click(page, SIGNIN_RE):
+            pw.first.press("Enter")
+    except Exception:  # noqa: BLE001
         pw.first.press("Enter")
-    page.wait_for_load_state("networkidle", timeout=30000)
+    try:
+        page.wait_for_load_state("networkidle", timeout=30000)
+    except Exception:  # noqa: BLE001
+        pass
+    page.wait_for_timeout(2000)
     return page.locator('input[type="password"]:visible').count() == 0
 
 
@@ -255,15 +365,9 @@ def test_login(careers_url: str, email: str, password: str, state: dict | None) 
         browser, ctx, page = _open(p, None)  # always test from a clean session
         try:
             page.goto(careers_url, wait_until="networkidle", timeout=60000)
-            if page.locator('input[type="password"]:visible').count() == 0:
-                if not _click_text(page, SIGNIN_LINK_RE):
-                    page.locator('a[href*="login" i], a[href*="signin" i], a[href*="profile" i]').first.click(timeout=8000)
-                page.wait_for_load_state("networkidle", timeout=30000)
-                if page.locator('input[type="password"]:visible').count() == 0:
-                    _click_text(page, SIGNIN_LINK_RE, timeout=3000)
-                    page.wait_for_load_state("networkidle", timeout=30000)
-            if page.locator('input[type="password"]:visible').count() == 0:
-                return {"ok": False, "note": "Couldn't find the sign-in form on this site", "shot": _shot(page), "state": state}
+            if not _open_signin(page):
+                return {"ok": False, "shot": _shot(page), "state": state,
+                        "note": "Couldn't find the sign-in form. " + _what_i_see(page)}
             ok = _login_if_needed(page, email, password)
             page.wait_for_timeout(2000)
             body = page.inner_text("body").lower()
@@ -271,13 +375,13 @@ def test_login(careers_url: str, email: str, password: str, state: dict | None) 
             if not ok:
                 if re.search(r"incorrect|invalid|not recogni|failed|try again", body):
                     return {"ok": False, "note": "The site said the email or password is wrong", "shot": shot, "state": state}
-                return {"ok": False, "note": "Still on the sign-in page - check the screenshot", "shot": shot, "state": state}
+                return {"ok": False, "note": "Still on the sign-in page after entering the details. " + _what_i_see(page), "shot": shot, "state": state}
             if re.search(r"verification code|one[- ]time|enter the code|verify your", body):
                 return {"ok": False, "shot": shot, "state": state,
                         "note": "The site asked for a verification code, which the robot can't receive yet."}
             return {"ok": True, "note": "Signed in successfully", "shot": shot, "state": ctx.storage_state()}
         except Exception as e:  # noqa: BLE001
-            return {"ok": False, "note": f"Error: {e}", "shot": _shot(page), "state": state}
+            return {"ok": False, "note": f"Error: {str(e)[:200]} | {_what_i_see(page)}", "shot": _shot(page), "state": state}
         finally:
             browser.close()
 
@@ -307,6 +411,7 @@ def apply(job: dict, email: str, password: str, resume: Path, profile: dict, ans
 
         try:
             page.goto(job["url"], wait_until="networkidle", timeout=60000)
+            _dismiss_cookies(page)
             if "position has been filled" in page.content().lower():
                 return done("skipped", "Position already filled")
 

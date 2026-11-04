@@ -10,7 +10,11 @@ RESUME_DIR.mkdir(exist_ok=True)
 def save(filename: str, content: bytes) -> Path:
     ext = Path(filename).suffix.lower()
     if ext not in (".pdf", ".docx"):
-        raise ValueError("Please upload a PDF or Word (.docx) resume")
+        raise ValueError(f"That file is '{ext or 'unknown'}'. Please upload a PDF or Word (.docx) - from Pages or Google Docs use Share, Export, PDF")
+    if not content:
+        raise ValueError("That file was empty - please try again")
+    if len(content) > 10_000_000:
+        raise ValueError("That file is over 10 MB - please export a smaller PDF")
     for old in RESUME_DIR.glob("resume.*"):
         old.unlink()
     path = RESUME_DIR / f"resume{ext}"

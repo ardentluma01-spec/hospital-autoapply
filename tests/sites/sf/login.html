@@ -1,0 +1,4 @@
+<form id="s1" onsubmit="document.getElementById('s1').hidden=true;document.getElementById('s2').hidden=false;return false">
+<label for=u>Email address</label><input id=u name=username type=text><button type=submit>Next</button></form>
+<form id="s2" hidden onsubmit="if(document.getElementById('p').value==='pw'){document.body.innerHTML='<a>Sign Out</a> Welcome, Alex'}else{document.getElementById('e').textContent='Invalid password'};return false">
+<label for=p>Password</label><input id=p type=password><button type=submit>Sign In</button><div id=e></div></form>
