@@ -312,6 +312,17 @@ def test_smartrecruiters_board(monkeypatch):
     assert got[0]["url"] == "https://jobs.smartrecruiters.com/Epworth/1" and report["Epworth"]["listings"] == 3
 
 
+def test_letter_checks_accept_profile_answers_and_spellings():
+    letter = ("I hold a Certificate III in Sterilisation Services. I have a current driver's licence. "
+              "I also hold a current National Police Check.")
+    facts = {"drivers_licence": "Yes", "police_check": "March 2025", "certificates": "Cert 3 Sterilisation Services 2024"}
+    assert matcher.letter_warnings(letter, "resume text", facts) == []
+    assert matcher.letter_warnings(letter, "Certificate 111 in Sterilisation. Drivers license. Police clearance 2025", {}) == []
+    assert matcher.letter_warnings(letter, "Certificate Three (Sterilising). Driving licence. Police certificate", {}) == []
+    bad = matcher.letter_warnings(letter, "resume text", {"drivers_licence": "no", "police_check": "willing to obtain"})
+    assert len(bad) == 3
+
+
 def test_notify_accepts_screenshot_bytes(monkeypatch):
     sent = []
 

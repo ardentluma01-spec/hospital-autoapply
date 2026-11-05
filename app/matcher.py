@@ -54,12 +54,40 @@ _CLAIM = re.compile(r"\b(i hold|i have|i've|i am|i'm|my|completed|certified|qual
 
 
 def _credential_text(t: str) -> str:
-    t = normalise(t).lower()
+    t = normalise(t).lower().replace("\u2019", "'").replace("\u2018", "'").replace("`", "'")
+    t = re.sub(r"\bcert(?:ificate)?\.?\s*(?:three|111|lll|3rd)\b", "certificate iii", t)
+    t = re.sub(r"\bcert(?:ificate)?\.?\s*(?:four|1v|lv|4th)\b", "certificate iv", t)
+    t = re.sub(r"\bcert(iii|iv)\b", r"certificate \1", t)
     t = re.sub(r"[\u2010-\u2015\-_/]", " ", t)                  # first-aid, working-with-children
     t = re.sub(r"\bcert\.?\s*(iii|iv|3|4)\b", lambda m: "certificate " + {"3": "iii", "4": "iv"}.get(m.group(1), m.group(1)), t)
     t = re.sub(r"\bcertificate (3|4)\b", lambda m: "certificate " + {"3": "iii", "4": "iv"}[m.group(1)], t)
-    t = t.replace("drivers license", "drivers licence").replace("driver's license", "driver's licence")
+    t = re.sub(r"\b(driver'?s|driving) licen[cs]e\b", "driver's licence drivers licence", t)
+    t = re.sub(r"\bpolice (check|clearance|certificate)\b", "police check police certificate", t)
+    t = re.sub(r"\bnational police\b", "police check police certificate", t)
     return re.sub(r"\s+", " ", t)
+
+
+_SAME = {"drivers licence": "driver's licence", "police certificate": "police check"}
+
+# A "yes"-type answer in these profile boxes counts as proof of the matching credential.
+FACT_EVIDENCE = {
+    "cert3_hsa": "certificate iii",
+    "police_check": "police check police certificate",
+    "drivers_licence": "driver's licence drivers licence",
+    "wwcc": "working with children wwcc wwc card",
+    "ahpra": "ahpra registration registered",
+}
+_NO = re.compile(r"^\s*(no|none|nil|n/?a|not yet|nope|-+|willing|happy to|will obtain|can obtain|in progress|working towards)\b", re.I)
+
+
+def _facts_evidence(facts: dict) -> str:
+    out = []
+    for k, v in (facts or {}).items():
+        v = str(v or "").strip()
+        out.append(v)
+        if k in FACT_EVIDENCE and v and not _NO.search(v):
+            out.append(FACT_EVIDENCE[k])
+    return " ".join(out)
 
 
 def client() -> Anthropic:
@@ -111,12 +139,13 @@ def _json(text: str) -> dict:
 
 def letter_warnings(letter: str, resume_text: str, facts: dict) -> list[str]:
     """Credentials the letter attributes to the applicant that the resume/confirmed facts don't evidence."""
-    evidence = _credential_text(resume_text + " " + " ".join(str(v) for v in (facts or {}).values()))
+    evidence = _credential_text(resume_text + " " + _facts_evidence(facts))
     out = []
     for sentence in re.split(r"(?<=[.!?])\s+|\n+", _credential_text(letter)):
         claim = bool(_CLAIM.search(sentence))
         for term in CREDENTIALS_ALWAYS + (CREDENTIALS_CLAIMED if claim else []):
             if re.search(rf"\b{re.escape(term)}\b", sentence) and term not in evidence:
+                term = _SAME.get(term, term)
                 msg = f'The letter claims "{term}", which isn\'t in your resume or confirmed profile. Remove it or confirm it.'
                 if msg not in out:
                     out.append(msg)

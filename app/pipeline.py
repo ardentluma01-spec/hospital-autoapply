@@ -132,6 +132,46 @@ def retry_failed_assessments(cfg: dict, limit: int = 10) -> int:
     return n
 
 
+NOT_SENT = ("new", "failed", "needs_info", "skipped", "blocked", "ready_for_review", "watch_only", "cancelled", "not_submitted")
+
+
+def refresh_letter_checks(job_id: int | None = None) -> int:
+    """Re-run the 'things to check' list against the current resume + profile (no AI, free)."""
+    profile, rtext = db.get_kv("profile", {}), resume.text()
+    n = 0
+    for j in ([db.get_job(job_id)] if job_id else db.list_jobs(2000)):
+        if j and j["cover_letter"] and j["status"] in NOT_SENT and not j["submit_attempted_at"]:
+            db.update_job(j["id"], letter_warnings=json.dumps(matcher.letter_warnings(j["cover_letter"], rtext, profile)))
+            n += 1
+    return n
+
+
+def reassess(job_id: int) -> str:
+    """Score the job again with the latest resume/profile and, if it's now a match, prepare it. Never submits."""
+    with _lock:
+        j = db.get_job(job_id)
+        if not j or j["submit_attempted_at"] or j["status"] not in NOT_SENT:
+            return "Can't re-check this job"
+        db.update_job(job_id, status="new", note="Re-checking...")
+        try:
+            process(job_id, config())
+        except Exception as e:  # noqa: BLE001
+            db.update_job(job_id, status="failed", note=f"Error: {type(e).__name__}")
+        return db.get_job(job_id)["note"] or "Re-checked"
+
+
+def recheck_skipped(limit: int = 15) -> int:
+    """After the profile changes: re-score jobs the AI turned down (e.g. it thought a certificate was missing)."""
+    n = 0
+    for j in db.list_jobs(2000):
+        if n >= limit:
+            break
+        if j["status"] == "skipped" and not j["submit_attempted_at"]:
+            reassess(j["id"])
+            n += 1
+    return n
+
+
 def process(job_id: int, cfg: dict):
     job = db.get_job(job_id)
     if not job["description"]:

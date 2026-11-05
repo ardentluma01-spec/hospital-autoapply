@@ -68,6 +68,9 @@
 <section class="card">
   <h2>Other options</h2>
   <div class="stack">
+    {% if job.status in ['skipped', 'failed', 'needs_info', 'blocked', 'ready_for_review', 'watch_only', 'cancelled'] and not job.submit_attempted_at %}
+      <form method="post" action="/job/{{ job.id }}/recheck"><button class="btn-block">Re-check with my latest details</button></form>
+    {% endif %}
     {% if job.status in ['needs_info', 'failed', 'blocked', 'ready_for_review'] and not job.submit_attempted_at %}
       <form method="post" action="/job/{{ job.id }}/retry"><button class="btn-ghost btn-block">Re-fill the form</button></form>
     {% endif %}

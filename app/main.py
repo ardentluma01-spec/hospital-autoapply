@@ -36,6 +36,7 @@ PROFILE_FIELDS = [
     ("phone", "Mobile"),
     ("suburb", "Suburb"),
     ("work_rights", "Work rights (e.g. Australian citizen / PR / visa type)"),
+    ("certificates", "All certificates and licences (full names + year, e.g. Certificate III in Sterilisation Services 2024, First Aid 2025)"),
     ("cert3_hsa", "Certificate III Health Services Assistance? (yes/no + year)"),
     ("ahpra", "AHPRA registration (number + type, or 'none')"),
     ("wwcc", "Working With Children Check (Employee, number, expiry, or 'none')"),
@@ -418,7 +419,9 @@ def download_resume():
 async def save_profile(request: Request):
     form = await request.form()
     db.set_kv("profile", {k: str(form.get(k, "")).strip() for k, _ in PROFILE_FIELDS})
-    return RedirectResponse("/profile?msg=Profile saved#profile", 303)
+    n = pipeline.refresh_letter_checks()
+    _background(pipeline.recheck_skipped)
+    return RedirectResponse(f"/profile?msg=Profile saved. Letter checks updated on {n} job(s); jobs marked 'not a strong enough match' are being re-checked with your new details.#profile", 303)
 
 
 @app.post("/check", dependencies=[Depends(auth)])
@@ -453,7 +456,14 @@ def screenshot(job_id: int):
 @app.post("/job/{job_id}/letter", dependencies=[Depends(auth)])
 def save_letter(job_id: int, cover_letter: str = Form(...)):
     db.update_job(job_id, cover_letter=cover_letter)
+    pipeline.refresh_letter_checks(job_id)
     return RedirectResponse(f"/job/{job_id}?msg=Cover letter saved", 303)
+
+
+@app.post("/job/{job_id}/recheck", dependencies=[Depends(auth)])
+def recheck(job_id: int):
+    _background(pipeline.reassess, job_id)
+    return RedirectResponse(f"/job/{job_id}?msg=Re-checking with your latest resume and details - refresh in a minute", 303)
 
 
 @app.post("/job/{job_id}/approve", dependencies=[Depends(auth)])
