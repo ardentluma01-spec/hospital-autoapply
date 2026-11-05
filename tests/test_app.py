@@ -187,10 +187,11 @@ def test_nurse_jobs_hidden_and_failed_ai_retried(env, monkeypatch):
     import yaml
     cfg = yaml.safe_load((Path(__file__).resolve().parent.parent / "config.yaml").read_text())
     for t in ["Registered Nurse G2", "Registered Anaesthetic Nurse", "PSA Team Leader", "Support Services Cleaner",
-              "Health Assistant in Nursing", "Nurse Unit Manager"]:
+              "Health Assistant in Nursing", "Nurse Unit Manager", "Food Services Assistant", "CSSD Team Leader",
+              "Kitchen Hand", "Patient Services Assistant", "Ward Clerk"]:
         assert not sources.title_matches(t, cfg), t
-    for t in ["Patient Services Assistant", "PSA - Casual Pool", "Patient Services Assist G2", "Ward Clerk 3 West",
-              "Outpatient Receptionist", "Ward Support Assistant (Casual)", "Food Services Assistant", "CSSD Technician"]:
+    for t in ["CSSD Instrument Technician", "Sterilisation Technician", "Theatre Technician", "Storeperson",
+              "Supply Officer - Theatres", "Patient Transport Assistant", "Pharmacy Assistant", "Production Operator"]:
         assert sources.title_matches(t, cfg), t
     nurse = db.add_job({"url": "n", "job_key": "n", "hospital": "Test Health", "title": "Registered Nurse G2"})
     db.update_job(nurse, status="failed")
@@ -293,6 +294,22 @@ def test_pageup_board_clicks_show_more(server, monkeypatch):
     report = {}
     found = sources.fetch_for([h], (), report)
     assert len(found) == 3 and report["Bayside"]["listings"] == 3
+
+
+def test_smartrecruiters_board(monkeypatch):
+    monkeypatch.setattr(sources, "POLITE_DELAY_S", 0)
+    pages = {0: {"totalFound": 3, "content": [{"id": "1", "name": "CSSD Instrument Technician", "location": {"city": "Richmond"}},
+                                                {"id": "2", "name": "Registered Nurse"}]},
+             2: {"totalFound": 3, "content": [{"id": "3", "name": "Storeperson"}]}}
+    def fake_get(url):
+        off = int(url.rsplit("offset=", 1)[1])
+        return type("R", (), {"json": lambda self: pages[off]})()
+    monkeypatch.setattr(sources, "_get", fake_get)
+    h = {"name": "Epworth", "careers_url": "https://jobs.smartrecruiters.com/Epworth", "platform": "smartrecruiters", "login_env": "EPWORTH"}
+    report = {}
+    got = sources.fetch_for([h], (), report)
+    assert [j["title"] for j in got] == ["CSSD Instrument Technician", "Registered Nurse", "Storeperson"]
+    assert got[0]["url"] == "https://jobs.smartrecruiters.com/Epworth/1" and report["Epworth"]["listings"] == 3
 
 
 def test_notify_accepts_screenshot_bytes(monkeypatch):

@@ -200,7 +200,29 @@ def pageup_jobs(hospital: dict, max_clicks: int = 15) -> list[dict]:
     return out
 
 
-READERS = ("successfactors", "successfactors_legacy", "pageup")
+def smartrecruiters_jobs(hospital: dict) -> list[dict]:
+    """SmartRecruiters boards (e.g. jobs.smartrecruiters.com/Epworth) have a public JSON list of postings."""
+    from urllib.parse import urlsplit, quote
+    company = urlsplit(hospital["careers_url"]).path.strip("/").split("/")[0]
+    out, offset = [], 0
+    while offset < 1000:
+        data = _get(f"https://api.smartrecruiters.com/v1/companies/{quote(company)}/postings?limit=100&offset={offset}").json()
+        items = data.get("content") or []
+        for it in items:
+            loc = it.get("location") or {}
+            out.append({"hospital": hospital["name"], "title": (it.get("name") or "").strip(),
+                        "url": f"https://jobs.smartrecruiters.com/{company}/{it.get('id')}",
+                        "location": ", ".join(x for x in (loc.get("city"), loc.get("region")) if x),
+                        "posted": (it.get("releasedDate") or "")[:10]})
+        offset += len(items)
+        if not items or offset >= int(data.get("totalFound") or 0):
+            break
+        time.sleep(POLITE_DELAY_S)
+    log.info("%s: %d listings (SmartRecruiters)", hospital["name"], len(out))
+    return out
+
+
+READERS = ("successfactors", "successfactors_legacy", "pageup", "smartrecruiters")
 
 
 def same_site(url: str, careers_url: str) -> bool:
@@ -290,6 +312,8 @@ def fetch_for(hospitals: list[dict], queries=(), report: dict | None = None) -> 
                 listing = successfactors_jobs(h, queries)
             elif h["platform"] == "pageup":
                 listing = pageup_jobs(h)
+            elif h["platform"] == "smartrecruiters":
+                listing = smartrecruiters_jobs(h)
             else:
                 listing = legacy_successfactors_jobs(h)
             n = 0

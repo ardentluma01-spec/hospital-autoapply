@@ -20,7 +20,8 @@ import yaml
 TARBALL = "https://codeload.github.com/ardentluma01-spec/hospital-autoapply/tar.gz/refs/heads/main"
 ROOT = Path(__file__).resolve().parent.parent
 OLD_DEFAULTS = {
-    "include_keywords": [["patient services", "psa", "patient service assistant", "ward assistant", "personal care",
+    "include_keywords": [['patient services', 'patient service', 'psa', 'patient support', 'ward assistant', 'ward support', 'ward services', 'ancillary assistant', 'hospital assistant', 'support services assistant', 'clinical assistant', 'food services assistant', 'food service assistant', 'kitchen hand', 'linen', 'sterilisation', 'sterilising', 'cssd', 'clerk', 'receptionist', 'reception', 'admission', 'customer service', 'administration officer', 'administrative officer', 'administration assistant', 'administrative assistant', 'switchboard', 'telephonist', 'concierge', 'meet and greet', 'medical records', 'health information'],
+                         ["patient services", "psa", "patient service assistant", "ward assistant", "personal care",
                           "enrolled nurse", "registered nurse", "nurse"],
                          ["patient services", "patient service", "psa", "patient support", "patient transport",
                           "ward assistant", "wardsperson", "orderly", "environmental services", "hospital assistant",
@@ -29,7 +30,8 @@ OLD_DEFAULTS = {
                           "ward assistant", "wardsperson", "orderly", "environmental services", "hospital assistant",
                           "support services assistant", "food services assistant", "ward support", "ancillary assistant",
                           "clinical assistant", "ward services"]],
-    "exclude_keywords": [["manager", "director", "educator", "midwife", "pharmacist", "registrar", "medical officer", "specialist"],
+    "exclude_keywords": [['nurse', 'nursing', 'midwife', 'manager', 'director', 'coordinator', 'team leader', 'supervisor', 'educator', 'pharmacist', 'registrar', 'medical officer', 'doctor', 'specialist', 'consultant', 'therapist', 'psychologist', 'cleaner', 'orderly', 'wardsperson', 'senior', 'executive', 'emergency department'],
+                         ["manager", "director", "educator", "midwife", "pharmacist", "registrar", "medical officer", "specialist"],
                          ["nurse", "midwife", "manager", "director", "coordinator", "team leader", "supervisor", "educator",
                           "pharmacist", "registrar", "medical officer", "doctor", "specialist", "consultant", "therapist",
                           "psychologist"],
@@ -37,6 +39,7 @@ OLD_DEFAULTS = {
                           "educator", "pharmacist", "registrar", "medical officer", "doctor", "specialist", "consultant",
                           "therapist", "psychologist"]],
 }
+OLD_PREFERENCES = ['Looking for a calm, steady, low-stress hospital job. Prefers lighter physical work (not heavy cleaning or being moved from ward to ward all shift), a predictable routine and friendly contact with patients, visitors or staff. Happy with patient services, ward clerk, reception, customer service, food services, linen, sterilising or similar entry-level support roles.']
 REPLACE = ["app", "deploy", "requirements.txt", "README.md", "install.sh", "VERSION", ".env.example"]
 
 
@@ -58,6 +61,8 @@ def _merge_config(new_cfg: Path, cur_cfg: Path):
     for k in ("include_keywords", "exclude_keywords"):
         if sorted(cur.get(k) or []) in [sorted(d) for d in OLD_DEFAULTS.get(k, [])]:
             cur[k] = new.get(k, cur[k])
+    if cur.get("job_preference") in OLD_PREFERENCES:
+        cur["job_preference"] = new.get("job_preference", cur["job_preference"])
     if added:
         cur.setdefault("hospitals", []).extend(added)
     cur_cfg.write_text(yaml.safe_dump(cur, sort_keys=False, allow_unicode=True))

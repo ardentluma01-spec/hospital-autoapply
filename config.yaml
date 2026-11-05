@@ -14,47 +14,47 @@ check_every_minutes: 60
 # What kind of job suits the applicant. Private: the AI uses it to score jobs, it is never put
 # in a cover letter. Editable in Settings -> Jobs to look for.
 job_preference: >-
-  Looking for a calm, steady, low-stress hospital job. Prefers lighter physical work (not heavy
-  cleaning or being moved from ward to ward all shift), a predictable routine and friendly contact
-  with patients, visitors or staff. Happy with patient services, ward clerk, reception, customer
-  service, food services, linen, sterilising or similar entry-level support roles.
+  Wants a better-paid, steady job in the health industry. Very hard working and reliable, good with
+  her hands, happy with routine and shift work. Her English is limited, so jobs built around phones,
+  writing, reception or explaining things to patients are a poor fit. Does NOT want food service or
+  cleaning jobs (a small amount is OK). Good fits: sterilising / CSSD instrument technician, theatre
+  technician, stores and supply, distribution, pharmacy or pathology support, production work at
+  medical or pharmaceutical companies. Higher hourly rates, shift penalties and permanent roles score higher.
 
 # Only consider jobs whose title contains one of these (case-insensitive).
 # Broad on purpose: the AI then scores each one, including how calm the job looks.
 include_keywords:
-  - patient services
-  - patient service
-  - psa
-  - patient support
-  - ward assistant
-  - ward support
-  - ward services
-  - ancillary assistant
-  - hospital assistant
-  - support services assistant
-  - clinical assistant
-  - food services assistant
-  - food service assistant
-  - kitchen hand
-  - linen
+  - instrument technician
   - sterilisation
   - sterilising
+  - sterilization
   - cssd
-  - clerk
-  - receptionist
-  - reception
-  - admission
-  - customer service
-  - administration officer
-  - administrative officer
-  - administration assistant
-  - administrative assistant
-  - switchboard
-  - telephonist
-  - concierge
-  - meet and greet
-  - medical records
-  - health information
+  - sterile
+  - theatre technician
+  - theatre support
+  - theatre assistant
+  - anaesthetic technician
+  - stores
+  - storeperson
+  - store person
+  - supply officer
+  - supply assistant
+  - imprest
+  - distribution
+  - materials handler
+  - warehouse
+  - logistics officer
+  - inventory
+  - patient transport
+  - pharmacy assistant
+  - pharmacy technician
+  - specimen
+  - laboratory assistant
+  - lab assistant
+  - production
+  - process worker
+  - packer
+  - machine operator
 
 # Skip any job whose title contains one of these
 exclude_keywords:
@@ -76,11 +76,18 @@ exclude_keywords:
   - therapist
   - psychologist
   - cleaner
-  - orderly
-  - wardsperson
+  - cleaning
+  - food
+  - kitchen
+  - catering
+  - cook
+  - chef
   - senior
   - executive
-  - emergency department
+  - lead
+  - engineer
+  - scientist
+  - analyst
 
 # AI match score (0-100) needed before the bot prepares an application
 min_match_score: 65
@@ -154,6 +161,14 @@ hospitals:
     careers_url: https://careers.alfredhealth.org.au
     platform: pageup
     login_env: ALFRED
+    enabled: true
+
+  # Epworth (private hospitals: Richmond, East Melbourne, Box Hill, Camberwell, Geelong...).
+  # Found and scored automatically; you get the link + letter to apply (no automatic form filling).
+  - name: Epworth HealthCare (private hospitals)
+    careers_url: https://jobs.smartrecruiters.com/Epworth
+    platform: smartrecruiters
+    login_env: EPWORTH
     enabled: true
 
   # St Vincent's uses Workday. Watch-only in this version.
