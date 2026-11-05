@@ -146,7 +146,7 @@ def process(job_id: int, cfg: dict):
     if not rtext.strip():
         db.update_job(job_id, status="needs_info", note="Your resume couldn't be read. Upload a text-based PDF or Word file.")
         return
-    result = matcher.assess(job, rtext, profile, cfg["ai_model"])
+    result = matcher.assess(job, rtext, profile, cfg["ai_model"], cfg.get("job_preference", ""))
     if not result["ok"]:
         db.update_job(job_id, status="failed", note=result["reason"])
         return

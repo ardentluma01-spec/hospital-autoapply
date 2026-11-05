@@ -62,8 +62,11 @@
 
 <section class="card" id="search">
   <h2>Jobs to look for</h2>
-  <p class="muted">A job is considered only if its title contains one of the first list and none of the second. Separate with commas.</p>
   <form method="post" action="/search">
+    <label for="pref">What kind of job suits her</label>
+    <textarea id="pref" name="preference" style="min-height:110px">{{ cfg.job_preference or '' }}</textarea>
+    <p class="muted small">Private. The AI uses this to score each job and mark it 🌿 Calm, ⚖️ Moderate or 🔥 Demanding. It's never put in a cover letter.</p>
+    <p class="muted">A job is considered only if its title contains one of the first list and none of the second. Separate with commas.</p>
     <label for="inc">Job titles to look for</label>
     <textarea id="inc" name="include" style="min-height:110px">{{ cfg.include_keywords | join(', ') }}</textarea>
     <label for="exc">Skip titles containing</label>

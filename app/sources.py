@@ -115,7 +115,7 @@ def successfactors_jobs(hospital: dict, queries=()) -> list[dict]:
         jobs = _sf_from_search(base, hospital["name"])
     for q in queries:
         time.sleep(POLITE_DELAY_S)
-        jobs += _sf_from_search(base, hospital["name"], q=q, max_results=60)
+        jobs += _sf_from_search(base, hospital["name"], q=q, max_results=40)
     seen, out = set(), []
     for j in jobs:
         if j.get("url") and j.get("title") and j["url"] not in seen:
@@ -318,5 +318,5 @@ def fetch_all(cfg: dict, report: dict | None = None) -> list[dict]:
         if h.get("enabled") and h.get("careers_url", "").startswith("http"):
             hs.append({**h, "login_env": h.get("login_env", "")})
     # search terms: your job titles, skipping tiny ones like "psa" (matched in titles anyway)
-    queries = [k for k in cfg.get("include_keywords", []) if len(k) > 3][:16]
+    queries = [k for k in cfg.get("include_keywords", []) if len(k) > 3][:40]
     return fetch_for(hs, queries, report)

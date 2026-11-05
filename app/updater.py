@@ -24,11 +24,18 @@ OLD_DEFAULTS = {
                           "enrolled nurse", "registered nurse", "nurse"],
                          ["patient services", "patient service", "psa", "patient support", "patient transport",
                           "ward assistant", "wardsperson", "orderly", "environmental services", "hospital assistant",
-                          "support services assistant", "food services assistant"]],
+                          "support services assistant", "food services assistant"],
+                         ["patient services", "patient service", "psa", "patient support", "patient transport",
+                          "ward assistant", "wardsperson", "orderly", "environmental services", "hospital assistant",
+                          "support services assistant", "food services assistant", "ward support", "ancillary assistant",
+                          "clinical assistant", "ward services"]],
     "exclude_keywords": [["manager", "director", "educator", "midwife", "pharmacist", "registrar", "medical officer", "specialist"],
                          ["nurse", "midwife", "manager", "director", "coordinator", "team leader", "supervisor", "educator",
                           "pharmacist", "registrar", "medical officer", "doctor", "specialist", "consultant", "therapist",
-                          "psychologist"]],
+                          "psychologist"],
+                         ["nurse", "nursing", "midwife", "manager", "director", "coordinator", "team leader", "supervisor",
+                          "educator", "pharmacist", "registrar", "medical officer", "doctor", "specialist", "consultant",
+                          "therapist", "psychologist"]],
 }
 REPLACE = ["app", "deploy", "requirements.txt", "README.md", "install.sh", "VERSION", ".env.example"]
 

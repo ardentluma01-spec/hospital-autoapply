@@ -143,7 +143,7 @@ def explain_ai_error(e: Exception) -> str:
     return f"{name}."
 
 
-def assess(job: dict, resume_text: str, facts: dict, model: str) -> dict:
+def assess(job: dict, resume_text: str, facts: dict, model: str, preference: str = "") -> dict:
     """Returns {"score", "reason", "cover_letter", "warnings", "ok"}. ok=False means don't proceed."""
     prompt = f"""<resume>
 {_fence(resume_text)[:15000]}
@@ -159,16 +159,27 @@ Title: {_fence(job.get('title', ''))[:300]}
 {_fence(job.get('description', ''))[:10000]}
 </job_ad>
 
+<what_the_applicant_wants>
+{_fence(preference or "No preference given.")[:1500]}
+</what_the_applicant_wants>
+
 Tasks:
 1. Score 0-100 how well the applicant fits. If the ad states a mandatory requirement that the
    resume/confirmed facts don't show (e.g. AHPRA registration, Cert III), the score must be below 40
    and the reason must name the missing requirement. Keyword overlap alone is not suitability.
+   Also judge the job against <what_the_applicant_wants>: physically heavy, rushed or high-pressure
+   jobs (e.g. heavy cleaning across several wards, constant lifting, emergency department pace) must
+   score lower when the applicant wants something calm; steady, lighter jobs score higher.
 2. "reason": one or two sentences: what matches, and what is required but unverified.
+   "workload": one of "calm", "moderate", "demanding" - how physically and mentally demanding the
+   job looks from the ad.
 3. If score >= 50, write "cover_letter" (250-350 words, Australian English) addressing the ad's key
    selection criteria using ONLY facts from <resume>/<confirmed_facts>. No placeholders. Use
    "Dear Hiring Manager," unless the ad names a contact. Sign with the applicant's name if known.
+   <what_the_applicant_wants> is private: never mention it, stress, age or wanting an easier job in
+   the letter.
 
-Reply with JSON only: {{"score": 0, "reason": "", "cover_letter": ""}}"""
+Reply with JSON only: {{"score": 0, "reason": "", "workload": "", "cover_letter": ""}}"""
     try:
         data = _json(_ask(model, prompt, 2500))
         score, reason, letter = data.get("score"), data.get("reason"), data.get("cover_letter")
@@ -179,6 +190,9 @@ Reply with JSON only: {{"score": 0, "reason": "", "cover_letter": ""}}"""
         if score >= 50 and not letter.strip():
             raise ValueError("score >= 50 but no cover letter")
         letter, reason = letter[:6000], reason[:600]
+        workload = data.get("workload")
+        if workload in ("calm", "moderate", "demanding"):
+            reason = f"{ {'calm': '🌿 Calm', 'moderate': '⚖️ Moderate', 'demanding': '🔥 Demanding'}[workload] } workload. {reason}"
     except Exception as e:  # noqa: BLE001
         log.warning("AI assess failed/invalid: %s", e)
         return {"score": None, "reason": f"The AI check failed: {explain_ai_error(e)} It will be retried automatically on the next check.",

@@ -186,9 +186,11 @@ def test_login_through_cookie_banner_profile_menu_and_two_step(server):
 def test_nurse_jobs_hidden_and_failed_ai_retried(env, monkeypatch):
     import yaml
     cfg = yaml.safe_load((Path(__file__).resolve().parent.parent / "config.yaml").read_text())
-    for t in ["Registered Nurse G2", "Registered Anaesthetic Nurse", "PSA Team Leader"]:
+    for t in ["Registered Nurse G2", "Registered Anaesthetic Nurse", "PSA Team Leader", "Support Services Cleaner",
+              "Health Assistant in Nursing", "Nurse Unit Manager"]:
         assert not sources.title_matches(t, cfg), t
-    for t in ["Patient Services Assistant", "PSA - Casual Pool", "Patient Services Assist G2", "Environmental Services Officer"]:
+    for t in ["Patient Services Assistant", "PSA - Casual Pool", "Patient Services Assist G2", "Ward Clerk 3 West",
+              "Outpatient Receptionist", "Ward Support Assistant (Casual)", "Food Services Assistant", "CSSD Technician"]:
         assert sources.title_matches(t, cfg), t
     nurse = db.add_job({"url": "n", "job_key": "n", "hospital": "Test Health", "title": "Registered Nurse G2"})
     db.update_job(nurse, status="failed")
@@ -199,6 +201,14 @@ def test_nurse_jobs_hidden_and_failed_ai_retried(env, monkeypatch):
     monkeypatch.setattr(matcher, "_ask", boom)
     r = matcher.assess({"title": "PSA", "description": "x", "hospital": "H"}, "resume", {}, "m")
     assert not r["ok"] and "no credit" in r["reason"]
+    # the private preference reaches the AI, and the workload label is shown
+    seen = {}
+    def fake(model, prompt, n):
+        seen["p"] = prompt
+        return '{"score": 80, "reason": "Good fit.", "workload": "calm", "cover_letter": "Dear Hiring Manager, ..."}'
+    monkeypatch.setattr(matcher, "_ask", fake)
+    r = matcher.assess({"title": "Ward Clerk", "description": "x", "hospital": "H"}, "resume", {}, "m", "something calm")
+    assert r["ok"] and r["reason"].startswith("🌿 Calm") and "something calm" in seen["p"] and "never mention" in seen["p"]
 
 
 def test_settings_tab_updates_keys(monkeypatch, tmp_path):
