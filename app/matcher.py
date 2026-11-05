@@ -199,6 +199,8 @@ Tasks:
    Also judge the job against <what_the_applicant_wants>: physically heavy, rushed or high-pressure
    jobs (e.g. heavy cleaning across several wards, constant lifting, emergency department pace) must
    score lower when the applicant wants something calm; steady, lighter jobs score higher.
+   If the job's work location is further away than the "Location:" line allows, the score must be
+   below 40 and the reason must say the location is too far.
 2. "reason": one or two sentences: what matches, and what is required but unverified.
    "workload": one of "calm", "moderate", "demanding" - how physically and mentally demanding the
    job looks from the ad.

@@ -323,6 +323,17 @@ def test_letter_checks_accept_profile_answers_and_spellings():
     assert len(bad) == 3
 
 
+def test_far_away_locations_are_ignored():
+    import yaml
+    cfg = yaml.safe_load((Path(__file__).resolve().parent.parent / "config.yaml").read_text())
+    assert not sources.location_ok({"title": "CSSD Technician", "location": "Bacchus Marsh Hospital"}, cfg)
+    assert not sources.location_ok({"title": "Storeperson - Box Hill", "location": ""}, cfg)
+    assert sources.location_ok({"title": "CSSD Technician", "location": "Footscray Hospital"}, cfg)
+    assert sources.location_ok({"title": "Instrument Technician", "location": "Parkville"}, cfg)
+    on = {h["login_env"] for h in cfg["hospitals"] if h.get("enabled")}
+    assert {"WESTERN", "RCH", "RMH", "PETERMAC"} <= on and not on & {"EASTERN", "AUSTIN", "NORTHERN", "EPWORTH"}
+
+
 def test_notify_accepts_screenshot_bytes(monkeypatch):
     sent = []
 

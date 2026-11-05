@@ -76,7 +76,7 @@ def check_for_jobs() -> str:
         listings = sources.fetch_all(cfg, report)
         new = 0
         for j in listings:
-            if not sources.title_matches(j["title"], cfg):
+            if not sources.title_matches(j["title"], cfg) or not sources.location_ok(j, cfg):
                 continue
             r = report.get(next((h["name"] for h in cfg["hospitals"] if h.get("login_env") == j.get("login_env")), ""))
             if r is not None:
@@ -110,8 +110,15 @@ def hide_non_matching(cfg: dict) -> int:
     Anything approved, being submitted or submitted is never touched."""
     n = 0
     for j in db.list_jobs(2000):
-        if j["status"] in UNTOUCHED and not j["submit_attempted_at"] and not sources.title_matches(j["title"] or "", cfg):
+        if j["status"] not in UNTOUCHED or j["submit_attempted_at"]:
+            continue
+        d = dict(j)
+        off = any(not h.get("enabled") and h.get("name") == d.get("hospital") for h in cfg.get("hospitals", []))
+        if not sources.title_matches(d.get("title") or "", cfg):
             db.update_job(j["id"], status="cancelled", note="Hidden: doesn't match the job titles you're looking for")
+            n += 1
+        elif not sources.location_ok({"title": d.get("title") or "", "location": d.get("location") or ""}, cfg) or off:
+            db.update_job(j["id"], status="cancelled", note="Hidden: too far away / hospital no longer watched")
             n += 1
     return n
 
@@ -186,7 +193,7 @@ def process(job_id: int, cfg: dict):
     if not rtext.strip():
         db.update_job(job_id, status="needs_info", note="Your resume couldn't be read. Upload a text-based PDF or Word file.")
         return
-    result = matcher.assess(job, rtext, profile, cfg["ai_model"], cfg.get("job_preference", ""))
+    result = matcher.assess(job, rtext, profile, cfg["ai_model"], (cfg.get("job_preference", "") + "\nLocation: " + cfg.get("location_preference", "")).strip())
     if not result["ok"]:
         db.update_job(job_id, status="failed", note=result["reason"])
         return

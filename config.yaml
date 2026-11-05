@@ -21,6 +21,30 @@ job_preference: >-
   technician, stores and supply, distribution, pharmacy or pathology support, production work at
   medical or pharmaceutical companies. Higher hourly rates, shift penalties and permanent roles score higher.
 
+# Where she can travel to (private; the AI scores jobs that are too far below the cut-off)
+location_preference: >-
+  Lives in Melbourne's inner west. Wants work close by: the furthest she will travel is Sunshine
+  Hospital, Footscray Hospital or Parkville (Royal Children's, Royal Melbourne, Peter Mac, Royal
+  Women's). Williamstown is fine. Anything further (e.g. Bacchus Marsh, Melton, Sunbury, Werribee, the
+  eastern, northern or south-eastern suburbs, Geelong) is too far.
+
+# Listings whose location mentions any of these are ignored straight away
+skip_locations:
+  - bacchus marsh
+  - melton
+  - sunbury
+  - geelong
+  - werribee
+  - frankston
+  - mornington
+  - box hill
+  - ringwood
+  - epping
+  - broadmeadows
+  - heidelberg
+  - clayton
+  - dandenong
+
 # Only consider jobs whose title contains one of these (case-insensitive).
 # Broad on purpose: the AI then scores each one, including how calm the job looks.
 include_keywords:
@@ -103,6 +127,7 @@ ai_model: claude-sonnet-5-5
 # ---------------------------------------------------------------
 hospitals:
   - name: Western Health (Sunshine, Footscray, Williamstown)
+    # includes the new Footscray Hospital
     careers_url: https://careers.wh.org.au
     platform: successfactors
     login_env: WESTERN
@@ -112,7 +137,7 @@ hospitals:
     careers_url: https://careers.easternhealth.org.au
     platform: successfactors
     login_env: EASTERN
-    enabled: true
+    enabled: false
 
   - name: Royal Children's Hospital
     careers_url: https://careers.rch.org.au
@@ -124,7 +149,7 @@ hospitals:
     careers_url: https://careers.austin.org.au
     platform: successfactors
     login_env: AUSTIN
-    enabled: true
+    enabled: false
 
   - name: Monash Health
     careers_url: https://careers.monashhealth.org
@@ -132,11 +157,11 @@ hospitals:
     login_env: MONASH
     enabled: false
 
-  - name: Peter MacCallum Cancer Centre
+  - name: Peter MacCallum Cancer Centre (Parkville)
     careers_url: https://careers.petermac.org
     platform: successfactors
     login_env: PETERMAC
-    enabled: false
+    enabled: true
 
   # Northern Health uses the older SuccessFactors board: the robot FINDS jobs and writes the
   # letter, then emails you the link (no automatic form filling there yet).
@@ -144,7 +169,7 @@ hospitals:
     careers_url: https://career10.successfactors.com/career?company=northernhe
     platform: successfactors_legacy
     login_env: NORTHERN
-    enabled: true
+    enabled: false
 
   # Royal Melbourne Hospital (Parkville, Royal Park) - same type of site as Western/Austin.
   # Its PSA-type job is called "Clinical Assistant".
@@ -161,7 +186,7 @@ hospitals:
     careers_url: https://careers.alfredhealth.org.au
     platform: pageup
     login_env: ALFRED
-    enabled: true
+    enabled: false
 
   # Epworth (private hospitals: Richmond, East Melbourne, Box Hill, Camberwell, Geelong...).
   # Found and scored automatically; you get the link + letter to apply (no automatic form filling).
@@ -169,7 +194,7 @@ hospitals:
     careers_url: https://jobs.smartrecruiters.com/Epworth
     platform: smartrecruiters
     login_env: EPWORTH
-    enabled: true
+    enabled: false
 
   # St Vincent's uses Workday. Watch-only in this version.
   - name: St Vincent's Hospital Melbourne

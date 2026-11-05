@@ -66,6 +66,10 @@
     <label for="pref">What kind of job suits her</label>
     <textarea id="pref" name="preference" style="min-height:110px">{{ cfg.job_preference or '' }}</textarea>
     <p class="muted small">Private. The AI uses this to score each job and mark it 🌿 Calm, ⚖️ Moderate or 🔥 Demanding. It's never put in a cover letter.</p>
+    <label for="loc">How far she can travel</label>
+    <textarea id="loc" name="location" style="min-height:90px">{{ cfg.location_preference or '' }}</textarea>
+    <label for="skp">Ignore jobs located in</label>
+    <textarea id="skp" name="skip_places" style="min-height:70px">{{ (cfg.skip_locations or []) | join(', ') }}</textarea>
     <p class="muted">A job is considered only if its title contains one of the first list and none of the second. Separate with commas.</p>
     <label for="inc">Job titles to look for</label>
     <textarea id="inc" name="include" style="min-height:110px">{{ cfg.include_keywords | join(', ') }}</textarea>

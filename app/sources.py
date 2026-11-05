@@ -37,12 +37,14 @@ def _sf_from_rss(base: str, hospital: str) -> list[dict]:
             log.info("RSS %s failed: %s", url, e)
             continue
         for e in feed.entries:
+            raw = e.get("title", "")
+            m = re.search(r"\(([^()]*)\)\s*$", raw)
             jobs.append({
                 "hospital": hospital,
-                "title": re.sub(r"\s*\(.*?\)\s*$", "", e.get("title", "")).strip(),
+                "title": re.sub(r"\s*\([^()]*\)\s*$", "", raw).strip(),
                 "url": e.get("link", ""),
                 "posted": e.get("published", ""),
-                "location": "",
+                "location": m.group(1).strip() if m else "",
                 "description": BeautifulSoup(e.get("summary", ""), "html.parser").get_text(" ", strip=True),
             })
         if jobs:
@@ -281,6 +283,12 @@ def job_description(url: str) -> str:
     except Exception as e:  # noqa: BLE001
         log.warning("Browser read of %s failed: %s", url, e)
     return text
+
+
+def location_ok(job: dict, cfg: dict) -> bool:
+    """False if the listing's location (or title) names a place in 'skip_locations' (too far away)."""
+    t = f"{job.get('location', '')} {job.get('title', '')}".lower()
+    return not any(x.strip().lower() in t for x in cfg.get("skip_locations", []) if x.strip())
 
 
 def title_matches(title: str, cfg: dict) -> bool:

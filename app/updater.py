@@ -55,6 +55,17 @@ def _merge_config(new_cfg: Path, cur_cfg: Path):
                         for h in cur.get("hospitals", [])]
     have = {h.get("login_env") for h in cur.get("hospitals", [])}
     added = [h for h in new.get("hospitals", []) if h.get("login_env") not in have]
+    if "location_preference" not in cur:   # first update with the "close to home" settings
+        near = {"WESTERN", "RCH", "RMH", "PETERMAC"}
+        far = {"EASTERN", "AUSTIN", "NORTHERN", "ALFRED", "EPWORTH", "MONASH"}
+        for h in cur.get("hospitals", []):
+            if h.get("login_env") in far:
+                h["enabled"] = False
+            elif h.get("login_env") in near and "PASTE" not in str(h.get("careers_url", "")):
+                h["enabled"] = True
+        for h in added:
+            if h.get("login_env") in far:
+                h["enabled"] = False
     for k, v in new.items():          # new settings the old file didn't have
         cur.setdefault(k, v)
     # if the keyword lists are still an older version's defaults (never edited), use the new defaults

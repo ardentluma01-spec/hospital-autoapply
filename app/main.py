@@ -355,7 +355,8 @@ def _do_update():
 
 
 @app.post("/search", dependencies=[Depends(auth)])
-def save_search(include: str = Form(""), exclude: str = Form(""), min_score: int = Form(65), preference: str = Form("")):
+def save_search(include: str = Form(""), exclude: str = Form(""), min_score: int = Form(65), preference: str = Form(""),
+                location: str = Form(""), skip_places: str = Form("")):
     import yaml
     def lst(t):
         out = []
@@ -372,6 +373,8 @@ def save_search(include: str = Form(""), exclude: str = Form(""), min_score: int
     cfg["include_keywords"], cfg["exclude_keywords"] = inc, lst(exclude)
     cfg["min_match_score"] = max(0, min(100, int(min_score)))
     cfg["job_preference"] = preference.strip()[:1500]
+    cfg["location_preference"] = location.strip()[:1000]
+    cfg["skip_locations"] = lst(skip_places)
     path.write_text(yaml.safe_dump(cfg, sort_keys=False, allow_unicode=True))
     hidden = pipeline.hide_non_matching(cfg)
     return RedirectResponse(f"/settings?msg=Saved. {hidden} job(s) that don't match were moved to 'Not a match'.#search", 303)
