@@ -33,6 +33,24 @@
   <form method="post" action="/check" style="margin-top:14px"><button class="btn-light btn-block">Check for new jobs now</button></form>
 </section>
 
+{% if last_report %}
+<details class="card">
+  <summary>What the last check found</summary>
+  <ul class="steps" style="margin-top:10px">
+    {% for name, r in last_report.items() %}
+    <li style="display:block">
+      <b>{{ name }}</b><br>
+      <span class="small {{ 'muted' if not r.error else '' }}">
+        {% if r.error and not r.listings %}⚠ {{ r.error }}
+        {% else %}{{ r.listings }} listings read · <b>{{ r.matches or 0 }}</b> match your job titles{% endif %}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="muted small">"Match your job titles" means the title contains one of the words in Settings → Jobs to look for. 0 usually just means that hospital has no PSA-type ads open right now.</p>
+</details>
+{% endif %}
+
 {% if not setup_done %}
 <section class="card">
   <h2>Finish setting up</h2>

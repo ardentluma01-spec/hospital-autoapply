@@ -1,0 +1,15 @@
+<!doctype html><html><body>
+<h1>Jobs</h1>
+<ul id="list">
+  <li><a href="/pageup/job/AAA/111/director-of-operations">Director of Operations</a></li>
+  <li><a href="/pageup/job/BBB/222/ward-support-assistant-casual">Ward Support Assistant (Casual)</a></li>
+</ul>
+<button id="more" onclick="more()">Show more jobs</button>
+<script>
+function more(){
+  var l=document.getElementById('list');
+  l.insertAdjacentHTML('beforeend','<li><a href="/pageup/job/CCC/333/ancillary-assistant">Ancillary Assistant</a></li>');
+  document.getElementById('more').remove();
+}
+</script>
+</body></html>

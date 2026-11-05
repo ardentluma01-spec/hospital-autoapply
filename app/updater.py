@@ -21,8 +21,14 @@ TARBALL = "https://codeload.github.com/ardentluma01-spec/hospital-autoapply/tar.
 ROOT = Path(__file__).resolve().parent.parent
 OLD_DEFAULTS = {
     "include_keywords": [["patient services", "psa", "patient service assistant", "ward assistant", "personal care",
-                          "enrolled nurse", "registered nurse", "nurse"]],
-    "exclude_keywords": [["manager", "director", "educator", "midwife", "pharmacist", "registrar", "medical officer", "specialist"]],
+                          "enrolled nurse", "registered nurse", "nurse"],
+                         ["patient services", "patient service", "psa", "patient support", "patient transport",
+                          "ward assistant", "wardsperson", "orderly", "environmental services", "hospital assistant",
+                          "support services assistant", "food services assistant"]],
+    "exclude_keywords": [["manager", "director", "educator", "midwife", "pharmacist", "registrar", "medical officer", "specialist"],
+                         ["nurse", "midwife", "manager", "director", "coordinator", "team leader", "supervisor", "educator",
+                          "pharmacist", "registrar", "medical officer", "doctor", "specialist", "consultant", "therapist",
+                          "psychologist"]],
 }
 REPLACE = ["app", "deploy", "requirements.txt", "README.md", "install.sh", "VERSION", ".env.example"]
 

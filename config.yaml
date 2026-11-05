@@ -25,10 +25,15 @@ include_keywords:
   - hospital assistant
   - support services assistant
   - food services assistant
+  - ward support
+  - ancillary assistant
+  - clinical assistant
+  - ward services
 
 # Skip any job whose title contains one of these
 exclude_keywords:
   - nurse
+  - nursing
   - midwife
   - manager
   - director
@@ -100,6 +105,23 @@ hospitals:
     careers_url: https://career10.successfactors.com/career?company=northernhe
     platform: successfactors_legacy
     login_env: NORTHERN
+    enabled: true
+
+  # Royal Melbourne Hospital (Parkville, Royal Park) - same type of site as Western/Austin.
+  # Its PSA-type job is called "Clinical Assistant".
+  - name: Royal Melbourne Hospital (Parkville, Royal Park)
+    careers_url: https://careers.thermh.org.au
+    platform: successfactors
+    login_env: RMH
+    enabled: true
+
+  # Bayside Health (The Alfred, Sandringham, Caulfield, Williamstown...) uses PageUp: the app FINDS
+  # jobs and writes the letter, then sends you the link to apply (no automatic form filling).
+  # Its PSA-type jobs are "Ward Support Assistant", "Ancillary Assistant", "Patient Services Assistant".
+  - name: Bayside Health (The Alfred, Sandringham, Caulfield)
+    careers_url: https://careers.alfredhealth.org.au
+    platform: pageup
+    login_env: ALFRED
     enabled: true
 
   # St Vincent's uses Workday. Watch-only in this version.

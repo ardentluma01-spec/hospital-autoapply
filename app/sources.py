@@ -50,11 +50,16 @@ def _sf_from_rss(base: str, hospital: str) -> list[dict]:
     return jobs
 
 
-def _sf_from_search(base: str, hospital: str, pages: int = 3, q: str = "") -> list[dict]:
+def _sf_from_search(base: str, hospital: str, pages: int = 3, q: str = "", max_results: int = 100) -> list[dict]:
+    """Site search. Pages are walked by the number of rows each page really shows (these sites show
+    10 per page, not 25), until a page adds nothing new or max_results is reached."""
     from urllib.parse import quote_plus
-    jobs = []
-    for page in range(pages):
-        url = f"{base}/search/?q={quote_plus(q)}&sortColumn=referencedate&sortDirection=desc&startrow={page * 25}"
+    jobs, seen = [], set()
+    startrow = 0
+    for page in range(max(pages, 1) * 10):
+        if len(jobs) >= max_results:
+            break
+        url = f"{base}/search/?q={quote_plus(q)}&sortColumn=referencedate&sortDirection=desc&startrow={startrow}"
         if page:
             time.sleep(POLITE_DELAY_S)
         try:
@@ -66,29 +71,39 @@ def _sf_from_search(base: str, hospital: str, pages: int = 3, q: str = "") -> li
         if not rows:
             # Generic fallback: any link that looks like a job page
             for a in soup.select('a[href*="/job/"]'):
-                jobs.append({"hospital": hospital, "title": a.get_text(strip=True),
-                             "url": urljoin(base, a["href"]), "location": "", "posted": ""})
+                u = urljoin(base, a["href"])
+                if u not in seen and a.get_text(strip=True):
+                    seen.add(u)
+                    jobs.append({"hospital": hospital, "title": a.get_text(strip=True),
+                                 "url": u, "location": "", "posted": ""})
             break
+        added = 0
         for row in rows:
             a = row.select_one("a.jobTitle-link") or row.select_one('a[href*="/job/"]')
             if not a:
                 continue
+            u = urljoin(base, a["href"])
+            if u in seen or not a.get_text(strip=True):
+                continue
+            seen.add(u)
+            added += 1
             loc = row.select_one(".jobLocation")
             date = row.select_one(".jobDate")
             jobs.append({
                 "hospital": hospital,
                 "title": a.get_text(strip=True),
-                "url": urljoin(base, a["href"]),
+                "url": u,
                 "location": loc.get_text(" ", strip=True) if loc else "",
                 "posted": date.get_text(strip=True) if date else "",
             })
-    # de-duplicate
-    seen, out = set(), []
-    for j in jobs:
-        if j["url"] and j["title"] and j["url"] not in seen:
-            seen.add(j["url"])
-            out.append(j)
-    return out
+        if not added:
+            break
+        startrow += len(rows)
+        label = soup.select_one(".paginationLabel")
+        total = re.search(r"of\s+([\d,]+)", label.get_text(" ")) if label else None
+        if total and startrow >= int(total.group(1).replace(",", "")):
+            break
+    return jobs
 
 
 def successfactors_jobs(hospital: dict, queries=()) -> list[dict]:
@@ -100,7 +115,7 @@ def successfactors_jobs(hospital: dict, queries=()) -> list[dict]:
         jobs = _sf_from_search(base, hospital["name"])
     for q in queries:
         time.sleep(POLITE_DELAY_S)
-        jobs += _sf_from_search(base, hospital["name"], pages=2, q=q)
+        jobs += _sf_from_search(base, hospital["name"], q=q, max_results=60)
     seen, out = set(), []
     for j in jobs:
         if j.get("url") and j.get("title") and j["url"] not in seen:
@@ -142,6 +157,50 @@ def legacy_successfactors_jobs(hospital: dict, max_pages: int = 8) -> list[dict]
             b.close()
     log.info("%s: %d listings (legacy board)", hospital["name"], len(out))
     return out
+
+
+def pageup_jobs(hospital: dict, max_clicks: int = 15) -> list[dict]:
+    """PageUp boards (e.g. careers.alfredhealth.org.au/jobs) list 10 jobs and load the rest with a
+    'Show more jobs' button, so they're read with the browser. Watch-only: you get the link + letter."""
+    from playwright.sync_api import sync_playwright
+    out, seen = [], set()
+    base = hospital["careers_url"].rstrip("/")
+    with sync_playwright() as p:
+        b = p.chromium.launch(headless=True)
+        page = b.new_page()
+        try:
+            from urllib.parse import urlsplit
+            start = base + "/jobs" if urlsplit(base).path in ("", "/") else base
+            page.goto(start, wait_until="networkidle", timeout=60000)
+            for _ in range(max_clicks):
+                more = page.get_by_role("button", name=re.compile(r"show more|load more|more jobs", re.I))
+                if not more.count():
+                    more = page.get_by_role("link", name=re.compile(r"show more|load more|more jobs", re.I))
+                if not more.count() or not more.first.is_visible():
+                    break
+                more.first.click(timeout=8000)
+                page.wait_for_load_state("networkidle", timeout=30000)
+                time.sleep(1)
+            for a in page.locator('a[href*="/job/"]').all():
+                try:
+                    href, title = a.get_attribute("href") or "", (a.inner_text() or "").strip()
+                except Exception:  # noqa: BLE001
+                    continue
+                url = urljoin(page.url, href)
+                title = title.split("\n")[0].strip()
+                if title and url not in seen and len(title) < 200:
+                    seen.add(url)
+                    out.append({"hospital": hospital["name"], "title": title, "url": url, "location": "", "posted": ""})
+        except Exception as e:  # noqa: BLE001
+            log.warning("PageUp board %s failed: %s", hospital["name"], e)
+            raise
+        finally:
+            b.close()
+    log.info("%s: %d listings (PageUp board)", hospital["name"], len(out))
+    return out
+
+
+READERS = ("successfactors", "successfactors_legacy", "pageup")
 
 
 def same_site(url: str, careers_url: str) -> bool:
@@ -217,14 +276,23 @@ def title_matches(title: str, cfg: dict) -> bool:
     return False
 
 
-def fetch_for(hospitals: list[dict], queries=()) -> list[dict]:
-    """Listings from every given hospital."""
+def fetch_for(hospitals: list[dict], queries=(), report: dict | None = None) -> list[dict]:
+    """Listings from every given hospital. If `report` is given, it's filled with
+    {hospital name: {"listings": n, "error": "..."}} so the dashboard can show what happened."""
     found = []
     for h in hospitals:
-        if h["platform"] not in ("successfactors", "successfactors_legacy") or not h.get("careers_url"):
+        if h["platform"] not in READERS or not h.get("careers_url"):
+            if report is not None:
+                report[h["name"]] = {"listings": 0, "error": "This site type isn't read yet"}
             continue
         try:
-            listing = successfactors_jobs(h, queries) if h["platform"] == "successfactors" else legacy_successfactors_jobs(h)
+            if h["platform"] == "successfactors":
+                listing = successfactors_jobs(h, queries)
+            elif h["platform"] == "pageup":
+                listing = pageup_jobs(h)
+            else:
+                listing = legacy_successfactors_jobs(h)
+            n = 0
             for j in listing:
                 if not same_site(j["url"], h["careers_url"]):
                     log.warning("Ignoring off-site listing link %s", j["url"][:120])
@@ -232,18 +300,23 @@ def fetch_for(hospitals: list[dict], queries=()) -> list[dict]:
                 j["platform"] = h["platform"]
                 j["login_env"] = h["login_env"]
                 found.append(j)
+                n += 1
+            if report is not None:
+                report[h["name"]] = {"listings": n, "error": "" if n else "No listings could be read"}
             time.sleep(POLITE_DELAY_S)
         except Exception as e:  # noqa: BLE001
             log.exception("Failed reading %s: %s", h["name"], e)
+            if report is not None:
+                report[h["name"]] = {"listings": 0, "error": f"Couldn't read the site ({type(e).__name__})"}
     return found
 
 
-def fetch_all(cfg: dict) -> list[dict]:
+def fetch_all(cfg: dict, report: dict | None = None) -> list[dict]:
     """Single-user version: hospitals come from config.yaml."""
     hs = []
     for h in cfg.get("hospitals", []):
         if h.get("enabled") and h.get("careers_url", "").startswith("http"):
             hs.append({**h, "login_env": h.get("login_env", "")})
     # search terms: your job titles, skipping tiny ones like "psa" (matched in titles anyway)
-    queries = [k for k in cfg.get("include_keywords", []) if len(k) > 3][:8]
-    return fetch_for(hs, queries)
+    queries = [k for k in cfg.get("include_keywords", []) if len(k) > 3][:16]
+    return fetch_for(hs, queries, report)

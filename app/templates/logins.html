@@ -24,10 +24,16 @@
       </span>
     </summary>
     <div style="margin-top:10px">
+      {% if h.platform in readable and 'PASTE' not in h.careers_url %}
+      <form method="post" action="/hospital/{{ le }}/toggle" style="margin-bottom:10px">
+        <button class="{{ 'btn-ghost' if h.enabled else '' }} btn-block">{{ 'Stop watching this hospital' if h.enabled else 'Start watching this hospital' }}</button>
+      </form>
+      {% endif %}
       {% if not h.enabled %}
-        <p class="muted">Not being watched. {% if 'PASTE' in h.careers_url %}Its careers address still needs adding.{% else %}Turn it on in config.yaml on the server.{% endif %}</p>
+        <p class="muted">Not being watched. {% if 'PASTE' in h.careers_url %}Its careers address still needs adding.{% elif h.platform not in readable %}This site type can't be read yet.{% endif %}</p>
       {% elif h.platform != 'successfactors' %}
-        <p class="muted">This site isn't automated yet, so you'll get an email with the link instead.</p>
+        <p class="muted">The app finds jobs here and writes your cover letter, then sends you the link to apply yourself (this site's form isn't filled automatically yet).</p>
+        <p class="small"><a href="{{ h.careers_url }}" target="_blank" rel="noopener">Open careers site ↗</a></p>
       {% else %}
       <p class="small"><a href="{{ h.careers_url }}" target="_blank" rel="noopener">Open careers site ↗</a></p>
       <form method="post" action="/login/{{ le }}">

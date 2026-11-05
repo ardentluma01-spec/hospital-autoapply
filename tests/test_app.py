@@ -252,9 +252,37 @@ def test_legacy_board_and_title_search(server, monkeypatch):
     assert sorted(j["title"] for j in got) == ["Environmental Services Officer", "Patient Services Assistant - Casual", "Registered Nurse"]
     seen = []
     monkeypatch.setattr(sources, "_sf_from_rss", lambda b, h: [])
-    monkeypatch.setattr(sources, "_sf_from_search", lambda b, h, pages=3, q="": seen.append(q) or [])
+    monkeypatch.setattr(sources, "_sf_from_search", lambda b, h, pages=3, q="", **k: seen.append(q) or [])
     sources.successfactors_jobs({"name": "X", "careers_url": "https://x"}, ["patient services", "ward assistant"])
     assert "patient services" in seen and "ward assistant" in seen
+
+
+def test_search_walks_every_page_of_ten(monkeypatch):
+    """Career sites show 10 results a page; every page must be read (the old code skipped 11-25)."""
+    import re as _re
+    total = 34
+
+    def fake_get(url):
+        start = int(_re.search(r"startrow=(\d+)", url).group(1))
+        rows = "".join(f'<tr class="data-row"><td><a class="jobTitle-link" href="/job/PSA-{i}/{i}/">Patient Services Assistant {i}</a></td></tr>'
+                       for i in range(start, min(start + 10, total)))
+        html = f'<span class="paginationLabel">Results {start + 1} – {min(start + 10, total)} of {total}</span><table>{rows}</table>'
+        return type("R", (), {"text": html})()
+    monkeypatch.setattr(sources, "_get", fake_get)
+    monkeypatch.setattr(sources, "POLITE_DELAY_S", 0)
+    got = sources._sf_from_search("https://x", "X", q="patient services")
+    assert len(got) == total and len({j["url"] for j in got}) == total
+
+
+def test_pageup_board_clicks_show_more(server, monkeypatch):
+    monkeypatch.setattr(sources, "POLITE_DELAY_S", 0)
+    h = {"name": "Bayside", "careers_url": f"{server.url}/pageup/jobs.html", "platform": "pageup", "login_env": "ALFRED"}
+    monkeypatch.setattr(sources, "pageup_jobs", sources.pageup_jobs)
+    got = sources.pageup_jobs({**h, "careers_url": f"{server.url}/pageup/jobs.html"})
+    assert sorted(j["title"] for j in got) == ["Ancillary Assistant", "Director of Operations", "Ward Support Assistant (Casual)"]
+    report = {}
+    found = sources.fetch_for([h], (), report)
+    assert len(found) == 3 and report["Bayside"]["listings"] == 3
 
 
 def test_notify_accepts_screenshot_bytes(monkeypatch):

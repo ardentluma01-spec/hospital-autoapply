@@ -72,11 +72,15 @@ def check_for_jobs() -> str:
         cfg = config()
         if not resume.current():
             return "Upload your resume first"
-        listings = sources.fetch_all(cfg)
+        report = {}
+        listings = sources.fetch_all(cfg, report)
         new = 0
         for j in listings:
             if not sources.title_matches(j["title"], cfg):
                 continue
+            r = report.get(next((h["name"] for h in cfg["hospitals"] if h.get("login_env") == j.get("login_env")), ""))
+            if r is not None:
+                r["matches"] = r.get("matches", 0) + 1
             j["job_key"] = sources.job_key(j["url"])
             j["url"] = sources.clean_url(j["url"])
             j["hospital"] = next((h["name"] for h in cfg["hospitals"] if h.get("login_env") == j.get("login_env")), j.get("hospital", ""))
@@ -92,6 +96,7 @@ def check_for_jobs() -> str:
         hidden = hide_non_matching(cfg)
         retried = retry_failed_assessments(cfg)
         db.set_kv("last_check", db.now())
+        db.set_kv("last_report", report)
         return f"Checked {len(listings)} listings, {new} new matching jobs, {retried} retried, {hidden} hidden"
     finally:
         _lock.release()

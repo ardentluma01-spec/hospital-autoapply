@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 
-from . import authn, db, pipeline, resume, vault
+from . import authn, db, pipeline, resume, sources, vault
 from .settings import ROOT, config, env
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -232,7 +232,8 @@ def _page(request: Request, tab: str, msg: str):
     return templates.TemplateResponse(request, f"{tab}.html", {
         "tab": tab, "cfg": cfg, "resume": r.name if r else None, "jobs": jobs, "counts": counts,
         "profile": profile, "fields": PROFILE_FIELDS, "steps": steps, "setup_done": all(s[1] for s in steps), "version": version,
-        "last_check": db.get_kv("last_check", "never"), "msg": msg,
+        "last_check": db.get_kv("last_check", "never"), "last_report": db.get_kv("last_report", {}), "msg": msg,
+        "readable": sources.READERS,
         "logins": logins, "label": LABELS, "update": db.get_kv("update_status"),
         "pin_set": authn.pin_set(), "push_topic": env("NTFY_TOPIC"), "topic_suggestion": "pulseapply-" + secrets.token_hex(6),
         "notify_last": __import__("app.notify", fromlist=["LAST"]).LAST,
@@ -372,6 +373,21 @@ def save_search(include: str = Form(""), exclude: str = Form(""), min_score: int
     path.write_text(yaml.safe_dump(cfg, sort_keys=False, allow_unicode=True))
     hidden = pipeline.hide_non_matching(cfg)
     return RedirectResponse(f"/settings?msg=Saved. {hidden} job(s) that don't match were moved to 'Not a match'.#search", 303)
+
+
+@app.post("/hospital/{login_env}/toggle", dependencies=[Depends(auth)])
+def toggle_hospital(login_env: str):
+    import yaml
+    path = ROOT / "config.yaml"
+    cfg = yaml.safe_load(path.read_text())
+    for h in cfg.get("hospitals", []):
+        if h.get("login_env") == login_env:
+            if "PASTE" in str(h.get("careers_url", "")) or h.get("platform") not in sources.READERS:
+                return RedirectResponse("/logins?msg=This hospital's site can't be read yet", 303)
+            h["enabled"] = not h.get("enabled")
+            path.write_text(yaml.safe_dump(cfg, sort_keys=False, allow_unicode=True))
+            return RedirectResponse(f"/logins?msg={h['name']} is now {'on' if h['enabled'] else 'off'}", 303)
+    raise HTTPException(404)
 
 
 @app.post("/update", dependencies=[Depends(auth)])
